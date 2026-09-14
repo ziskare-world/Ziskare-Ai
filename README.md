@@ -10,7 +10,7 @@
 
 **Universal, 100% Offline, Hardware-Accelerated Local Intelligence Engine for Any Application.**
 
-[Features](#-key-features) • [Installation](#-installation) • [Python API](#-python-api) • [CLI Tool](#-cli-usage) • [REST API](#-rest-api-microservice) • [Cross-Language](#-cross-language-integration) • [Recovery](#-disaster-recovery)
+[🚀 1-Click Install](#-1-click-installation) • [Ways to Use Across PC](#-ways-to-use-across-pc) • [Python API](#-python-api) • [CLI Tool](#-cli-usage) • [REST API](#-rest-api-microservice) • [Recovery](#-disaster-recovery)
 
 </div>
 
@@ -24,39 +24,35 @@ By default, Ziskare AI is tuned to provide **direct, concise answers** without c
 
 ---
 
-## ⚡ Key Features
+## 🚀 1-Click Installation (Windows)
 
-- 🔒 **100% Air-Gapped & Offline**: Strict `HF_HUB_OFFLINE=1`. Your queries and data never leave your computer.
-- 🚀 **Hardware Accelerated**: Automatically engages NVIDIA CUDA GPUs (TensorFloat-32 & Float16 precision for RTX 30-series Tensor Cores).
-- 🧩 **Universal Access**:
-  - **Python Library**: `import ziskare_ai as zai` anywhere on your computer.
-  - **Global CLI**: Run `ziskare-ai "your question"` from any terminal.
-  - **REST API Microservice**: Built-in HTTP server (`ziskare-ai --server 5005`) for Node.js, C#, Java, Go, or web apps.
-- 🎯 **No Conversational Filler**: Eliminates polite intros and pleasantries, providing pure direct answers.
-- 🧠 **Smart Context Management**: Supports both one-off queries (`.ask`) and multi-turn conversational memory (`.chat`).
+On any computer or freshly formatted Windows installation:
+1. Clone or download this repository to your computer (e.g. `D:\ziskare-ai`).
+2. **Double-click `install.bat`**.
+
+The automated installer will:
+- Check Python and NVIDIA GPU.
+- Install CUDA PyTorch for your NVIDIA GPU.
+- Install transformers & accelerate.
+- Install `ziskare_ai` globally into Python `site-packages`.
+- Register the global Windows CLI command `ziskare-ai`.
+- Pre-cache and verify model weights.
 
 ---
 
-## 📦 Installation
+## 💻 Ways to Use Across Your PC
 
-### Standard Setup:
-```bash
-# Clone the repository
-git clone https://github.com/ziskare-world/Ziskare-Ai.git
-cd Ziskare-Ai
+*Detailed guide: [**docs/HOW_TO_USE_ACROSS_PC.md**](docs/HOW_TO_USE_ACROSS_PC.md)*
 
-# Install requirements
-pip install -r requirements.txt
-
-# Install Ziskare AI globally
-pip install -e .
-```
-
-### NVIDIA GPU Acceleration (Recommended):
-For NVIDIA GeForce RTX GPUs, install CUDA-enabled PyTorch:
-```bash
-pip install --pre torch --index-url https://download.pytorch.org/whl/nightly/cu126 --force-reinstall
-```
+| Use Case | Method | Example |
+| :--- | :--- | :--- |
+| **From Any Terminal** | Global CLI | `ziskare-ai "What is 5 plus 5?"` |
+| **Interactive Chat** | Shell Mode | `ziskare-ai` |
+| **In Any Python Project** | Universal Package | `import ziskare_ai as zai` |
+| **In Node.js / JavaScript** | Subprocess Execution | `execSync('ziskare-ai "query"')` |
+| **In Web Apps / Any Language** | Local REST API | `ziskare-ai --server 5005` |
+| **Windows Desktop Hotkey** | Shortcut (Ctrl+Alt+Z) | Press shortcut to open anywhere |
+| **PowerShell Automation** | Pipeline / Scripts | `$ans = ziskare-ai "Summarize this: $log"` |
 
 ---
 
@@ -98,80 +94,23 @@ print("Ziskare AI:", reply)  # Output: 8080.
 ai.reset()
 ```
 
-### 4. Custom System Prompt (e.g., Strict JSON Formatter)
-```python
-from ziskare_ai import ZiskareAI
-
-json_ai = ZiskareAI(
-    system_prompt="You are a strict data formatter. Output ONLY valid JSON matching the user's request."
-)
-
-data = json_ai.ask("List 3 primary colors in a JSON array")
-print(data)  # ["red", "blue", "yellow"]
-```
-
----
-
-## 💻 CLI Usage
-
-Once installed, the `ziskare-ai` command is accessible from **any terminal, PowerShell, or CMD**:
-
-### Direct Question Answering:
-```powershell
-ziskare-ai "What is 5 plus 5?"
-# Output: 10
-```
-
-### Interactive Chat Shell:
-```powershell
-ziskare-ai
-```
-
-### Launch Local REST API Microservice:
-```powershell
-ziskare-ai --server 5005
-```
-
 ---
 
 ## 🌐 REST API Microservice
 
-Run Ziskare AI as a background service:
+Start the built-in HTTP server:
 ```powershell
 ziskare-ai --server 5005
 ```
 
-### Endpoints:
-| Method | Route | Body | Description |
-| :--- | :--- | :--- | :--- |
-| `POST` | `/ask` | `{"prompt": "..."}` | Single-turn direct answer with speed metrics. |
-| `POST` | `/chat` | `{"message": "..."}` | Multi-turn conversational chat with memory. |
-| `POST` | `/reset` | None | Clears conversational memory. |
-| `GET` | `/health` | None | Health check and device status. |
-
----
-
-## 🔌 Cross-Language Integration
-
-### In Node.js / JavaScript (CLI Execution):
+Query from any language or frontend via `POST http://127.0.0.1:5005/ask`:
 ```javascript
-const { execSync } = require('child_process');
-
-function askZiskare(prompt) {
-  return execSync(`ziskare-ai "${prompt}"`).toString().trim();
-}
-
-console.log("Ziskare AI:", askZiskare("What is Docker?"));
-```
-
-### In Web Applications (REST API `fetch`):
-```javascript
-const response = await fetch('http://127.0.0.1:5005/ask', {
+const res = await fetch('http://127.0.0.1:5005/ask', {
   method: 'POST',
   headers: { 'Content-Type': 'application/json' },
-  body: JSON.stringify({ prompt: 'Explain cloud computing in one sentence.' })
+  body: JSON.stringify({ prompt: 'Explain cloud computing.' })
 });
-const data = await response.json();
+const data = await res.json();
 console.log(data.answer);
 ```
 
@@ -180,8 +119,8 @@ console.log(data.answer);
 ## 🔄 Disaster Recovery (Fresh Windows Re-Setup)
 
 If you format your laptop or reinstall Windows:
-1. Run [`tools/setup_ziskare_ai.bat`](tools/setup_ziskare_ai.bat) (or `tools/setup_ziskare_ai.ps1`).
-2. The automated script restores CUDA PyTorch, deploys the package, and registers global CLI commands.
+1. Double-click `install.bat` (or `tools/setup_ziskare_ai.bat`).
+2. Everything is restored automatically.
 
 *Detailed recovery documentation is available in [`docs/REINSTALL_GUIDE.md`](docs/REINSTALL_GUIDE.md).*
 
