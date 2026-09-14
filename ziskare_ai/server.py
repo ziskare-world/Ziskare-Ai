@@ -18,7 +18,7 @@ import psutil
 import urllib.request
 import subprocess
 from pathlib import Path
-from http.server import HTTPServer, BaseHTTPRequestHandler
+from http.server import HTTPServer, ThreadingHTTPServer, BaseHTTPRequestHandler
 from ziskare_ai.core import ZiskareAI
 
 WORKSPACE_DIR = Path(r"D:\Ziskare-space")
@@ -420,13 +420,21 @@ function askAi(prompt) {
 
 def create_handler(ai_instance: ZiskareAI):
     class ZiskareHandler(BaseHTTPRequestHandler):
+        def _safe_write(self, data: bytes):
+            try:
+                self.wfile.write(data)
+            except (ConnectionResetError, BrokenPipeError, Exception):
+                pass
         def _set_headers(self, code=200, content_type='application/json'):
-            self.send_response(code)
-            self.send_header('Content-Type', content_type)
-            self.send_header('Access-Control-Allow-Origin', '*')
-            self.send_header('Access-Control-Allow-Methods', 'POST, GET, OPTIONS')
-            self.send_header('Access-Control-Allow-Headers', 'Content-Type, Authorization')
-            self.end_headers()
+            try:
+                self.send_response(code)
+                self.send_header('Content-Type', content_type)
+                self.send_header('Access-Control-Allow-Origin', '*')
+                self.send_header('Access-Control-Allow-Methods', 'POST, GET, OPTIONS')
+                self.send_header('Access-Control-Allow-Headers', 'Content-Type, Authorization')
+                self.end_headers()
+            except (ConnectionResetError, BrokenPipeError):
+                pass
 
         def do_OPTIONS(self):
             self._set_headers(200)
@@ -434,7 +442,7 @@ def create_handler(ai_instance: ZiskareAI):
         def do_GET(self):
             if self.path in ("/", "/index.html"):
                 self._set_headers(200, 'text/html; charset=utf-8')
-                self.wfile.write(RESCUE_CONSOLE_HTML.encode('utf-8'))
+                self._safe_write(RESCUE_CONSOLE_HTML.encode('utf-8'))
 
             elif self.path == "/health":
                 self._set_headers(200)
@@ -444,88 +452,103 @@ def create_handler(ai_instance: ZiskareAI):
                     "device": str(ai_instance.model.device),
                     "node_server_running": is_node_server_running()
                 }
-                self.wfile.write(json.dumps(payload).encode())
+                self._safe_write(json.dumps(payload).encode())
 
             elif self.path == "/api/system":
                 self._set_headers(200)
                 data = get_system_telemetry()
                 data["ai_device"] = str(ai_instance.model.device)
-                self.wfile.write(json.dumps(data).encode())
+                self._safe_write(json.dumps(data).encode())
 
             else:
                 self._set_headers(404)
-                self.wfile.write(b'{"error": "Endpoint Not Found"}')
+                self._safe_write(b'{"error": "Endpoint Not Found"}')
 
         def do_POST(self):
-            length = int(self.headers.get('content-length', 0))
-            body = self.rfile.read(length).decode('utf-8')
-            data = json.loads(body) if body else {}
+            try:
+                length = int(self.headers.get('content-length', 0))
+                body = self.rfile.read(length).decode('utf-8', errors='replace') if length > 0 else ""
+                try:
+                    data = json.loads(body) if body else {}
+                except Exception:
+                    data = {}
 
-            if self.path == "/ask":
-                prompt = data.get("prompt", "")
-                max_tokens = int(data.get("max_new_tokens", 256))
-                temp = float(data.get("temperature", 0.3))
-                result = ai_instance.ask(
-                    prompt,
-                    max_new_tokens=max_tokens,
-                    temperature=temp,
-                    return_metrics=True
-                )
-                if isinstance(result, dict) and "answer" in result:
-                    result["reply"] = result["answer"]
-                self._set_headers(200)
-                self.wfile.write(json.dumps(result).encode())
+                if self.path == "/ask":
+                    prompt = data.get("prompt", "") or data.get("message", "")
+                    max_tokens = int(data.get("max_new_tokens", 256))
+                    temp = float(data.get("temperature", 0.3))
+                    result = ai_instance.ask(
+                        prompt,
+                        max_new_tokens=max_tokens,
+                        temperature=temp,
+                        return_metrics=True
+                    )
+                    if isinstance(result, dict):
+                        ans = result.get("answer", "") or result.get("reply", "")
+                        result["reply"] = ans
+                        result["answer"] = ans
+                    self._set_headers(200)
+                    self._safe_write(json.dumps(result).encode('utf-8'))
 
-            elif self.path == "/chat":
-                msg = data.get("message", "")
-                max_tokens = int(data.get("max_new_tokens", 256))
-                temp = float(data.get("temperature", 0.3))
-                
-                # Check for autonomous server commands in the chat query
-                lower = msg.lower()
-                auto_action_report = ""
-                if "restart" in lower and "server" in lower:
-                    res = control_node_server("restart")
-                    auto_action_report = f"\n[Autonomous Action]: Server restart executed. Status: {res.get('message', 'done')}."
+                elif self.path == "/chat":
+                    msg = data.get("message", "") or data.get("prompt", "")
+                    max_tokens = int(data.get("max_new_tokens", 256))
+                    temp = float(data.get("temperature", 0.3))
 
-                reply, stats = ai_instance.chat(
-                    msg,
-                    max_new_tokens=max_tokens,
-                    temperature=temp
-                )
-                if auto_action_report:
-                    reply += auto_action_report
+                    # Check for autonomous server commands in the chat query
+                    lower = msg.lower()
+                    auto_action_report = ""
+                    if "restart" in lower and "server" in lower:
+                        res = control_node_server("restart")
+                        auto_action_report = f"\n[Autonomous Action]: Server restart executed. Status: {res.get('message', 'done')}."
 
-                self._set_headers(200)
-                self.wfile.write(json.dumps({"reply": reply, "answer": reply, "stats": stats}).encode())
+                    reply, stats = ai_instance.chat(
+                        msg,
+                        max_new_tokens=max_tokens,
+                        temperature=temp
+                    )
+                    if auto_action_report:
+                        reply += auto_action_report
 
-            elif self.path == "/api/server/control":
-                action = data.get("action", "status")
-                result = control_node_server(action)
-                self._set_headers(200 if result.get("success", True) else 500)
-                self.wfile.write(json.dumps(result).encode())
+                    self._set_headers(200)
+                    payload = {"reply": reply, "answer": reply, "stats": stats}
+                    self._safe_write(json.dumps(payload).encode('utf-8'))
 
-            elif self.path == "/api/server/fs":
-                action = data.get("action", "read")
-                path_str = data.get("path", "")
-                content = data.get("content", None)
-                result = handle_filesystem_ops(action, path_str, content)
-                self._set_headers(200 if result.get("success", True) else 400)
-                self.wfile.write(json.dumps(result).encode())
+                elif self.path == "/api/server/control":
+                    action = data.get("action", "status")
+                    result = control_node_server(action)
+                    self._set_headers(200 if result.get("success", True) else 500)
+                    self._safe_write(json.dumps(result).encode('utf-8'))
 
-            elif self.path == "/api/server/logs":
-                max_lines = int(data.get("lines", 50))
-                logs = get_server_logs(max_lines)
-                self._set_headers(200)
-                self.wfile.write(json.dumps({"logs": logs}).encode())
+                elif self.path == "/api/server/fs":
+                    action = data.get("action", "read")
+                    path_str = data.get("path", "")
+                    content = data.get("content", None)
+                    result = handle_filesystem_ops(action, path_str, content)
+                    self._set_headers(200 if result.get("success", True) else 400)
+                    self._safe_write(json.dumps(result).encode('utf-8'))
 
-            elif self.path == "/reset":
-                ai_instance.reset()
-                self._set_headers(200)
-                self.wfile.write(b'{"status": "memory_reset"}')
-            else:
-                self._set_headers(404)
-                self.wfile.write(b'{"error": "Endpoint Not Found"}')
+                elif self.path == "/api/server/logs":
+                    max_lines = int(data.get("lines", 50))
+                    logs = get_server_logs(max_lines)
+                    self._set_headers(200)
+                    self._safe_write(json.dumps({"logs": logs}).encode('utf-8'))
+
+                elif self.path == "/reset":
+                    ai_instance.reset()
+                    self._set_headers(200)
+                    self._safe_write(b'{"status": "memory_reset"}')
+
+                else:
+                    self._set_headers(404)
+                    self._safe_write(b'{"error": "Endpoint Not Found"}')
+
+            except Exception as e:
+                try:
+                    self._set_headers(500)
+                    self._safe_write(json.dumps({"success": False, "error": str(e), "reply": f"AI Daemon Error: {str(e)}"}).encode('utf-8'))
+                except Exception:
+                    pass
 
         def log_message(self, format, *args):
             pass
@@ -539,7 +562,7 @@ def run_server(port: int = 5005, host: str = "127.0.0.1", ai_instance: ZiskareAI
         ai_instance = ZiskareAI()
 
     handler = create_handler(ai_instance)
-    server = HTTPServer((host, port), handler)
+    server = ThreadingHTTPServer((host, port), handler)
     print(f"\n=======================================================", flush=True)
     print(f"  Ziskare AI - Autonomous Operations & Rescue Service", flush=True)
     print(f"  Console UI: http://{host}:{port}", flush=True)
