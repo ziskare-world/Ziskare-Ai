@@ -22,9 +22,18 @@ from http.server import HTTPServer, BaseHTTPRequestHandler
 from ziskare_ai.core import ZiskareAI
 
 WORKSPACE_DIR = Path(r"D:\Ziskare-space")
-NODE_SERVER_URL = "http://127.0.0.1:3000"
+def get_node_server_url():
+    port = 3002
+    try:
+        net_file = WORKSPACE_DIR / "data" / "network.json"
+        if net_file.exists():
+            data = json.loads(net_file.read_text(encoding="utf-8"))
+            port = int(data.get("serverPort", 3002))
+    except Exception:
+        pass
+    return f"http://127.0.0.1:{port}"
 
-def is_node_server_running(url: str = NODE_SERVER_URL, timeout: float = 1.0) -> bool:
+def is_node_server_running(url: str = get_node_server_url(), timeout: float = 1.0) -> bool:
     try:
         req = urllib.request.Request(url, method="GET")
         with urllib.request.urlopen(req, timeout=timeout) as res:
@@ -284,7 +293,7 @@ pre { background: #0f172a; padding: 8px 12px; border-radius: 8px; font-family: '
   </div>
   <div style="display: flex; gap: 10px; align-items: center;">
     <span id="nodeStatusBadge" class="badge badge-node-offline">Checking Node Server...</span>
-    <a href="http://127.0.0.1:3000" target="_blank" class="btn" style="font-size: 0.8rem; padding: 6px 12px;">Open App ↗</a>
+    <a href="http://127.0.0.1:3002" target="_blank" class="btn" style="font-size: 0.8rem; padding: 6px 12px;">Open App ↗</a>
   </div>
 </header>
 <div class="main-container">
@@ -462,6 +471,8 @@ def create_handler(ai_instance: ZiskareAI):
                     temperature=temp,
                     return_metrics=True
                 )
+                if isinstance(result, dict) and "answer" in result:
+                    result["reply"] = result["answer"]
                 self._set_headers(200)
                 self.wfile.write(json.dumps(result).encode())
 
@@ -486,7 +497,7 @@ def create_handler(ai_instance: ZiskareAI):
                     reply += auto_action_report
 
                 self._set_headers(200)
-                self.wfile.write(json.dumps({"reply": reply, "stats": stats}).encode())
+                self.wfile.write(json.dumps({"reply": reply, "answer": reply, "stats": stats}).encode())
 
             elif self.path == "/api/server/control":
                 action = data.get("action", "status")
