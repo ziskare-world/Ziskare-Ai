@@ -1,0 +1,26 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ziskare-ai"
+version = "1.0.0"
+authors = [
+  { name="Ziskare World", email="contact@ziskare.com" },
+]
+description = "Universal, 100% offline, GPU-accelerated local intelligence engine"
+readme = "README.md"
+requires-python = ">=3.8"
+dependencies = [
+    "torch",
+    "transformers",
+    "accelerate"
+]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence"
+]
+
+[project.scripts]
+ziskare-ai = "ziskare_ai.cli:main"
+ziskare = "ziskare_ai.cli:main"
