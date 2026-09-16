@@ -153,6 +153,14 @@ class ImageAgent(BaseAgent):
                 loader.stop()
             elapsed = round(loader.elapsed, 2)
 
+        # By default remove any watermark or third-party logo from the generated image
+        try:
+            from ziskare_ai.agents.tools import remove_watermark
+            if out_file.exists():
+                remove_watermark(out_file)
+        except Exception:
+            pass
+
         file_size = out_file.stat().st_size if out_file.exists() else 0
 
         # Render ultra-clear terminal visual preview and open image on desktop

@@ -681,6 +681,7 @@ def enhance_image_clarity(
     loader.start()
     try:
         img = Image.open(target_p).convert("RGB")
+        img = remove_watermark(img)
         orig_w, orig_h = img.size
 
         # 2x Super-resolution upscaling (capped at 2048 for high responsiveness)
