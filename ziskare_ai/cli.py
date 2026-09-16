@@ -47,12 +47,7 @@ def main():
         prompt = " ".join(args[idx + 1:]) if idx + 1 < len(args) else "futuristic cyberpunk city, 8k"
         from ziskare_ai.agents import ImageAgent
         img_agent = ImageAgent(silent=False)
-        res = img_agent.generate(prompt)
-        print(f"\n[Ziskare AI] Image successfully created:")
-        print(f"  File Path:   {res['file_path']}")
-        print(f"  Dimensions:  {res['dimensions']}")
-        print(f"  Size:        {res['size_kb']} KB")
-        print(f"  Engine:      {res['backend']}")
+        img_agent.generate(prompt)
         return
 
     # Direct optimize shortcut (supports: ziskare-ai optimize, ziskare-ai --optimize, etc.)
@@ -97,8 +92,7 @@ def main():
         if agent_type in ["image", "img", "art", "picture"]:
             agent = ImageAgent(silent=False)
             prompt = " ".join(rem_args) if rem_args else "futuristic cyberpunk city, 8k"
-            res = agent.generate(prompt)
-            print(f"\n[Ziskare AI] Image created: {res['file_path']} ({res['size_kb']} KB)")
+            agent.generate(prompt)
             return
 
         # Special Optimizer handling (Can run zero-model instant mode or AI diagnostic mode)

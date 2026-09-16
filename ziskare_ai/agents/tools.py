@@ -11,6 +11,8 @@ import ctypes
 import shutil
 import psutil
 import subprocess
+import time
+import threading
 from pathlib import Path
 from typing import Dict, Any, Optional, List
 
@@ -347,16 +349,36 @@ def run_command(command: str, timeout_sec: int = 15) -> str:
         return f"Execution error: {str(e)}"
 
 
+def get_latest_image() -> Optional[Path]:
+    """
+    Returns the Path to the most recently generated or enhanced image in output/images.
+    """
+    img_dir = DEFAULT_WORKSPACE / "output" / "images"
+    if not img_dir.exists():
+        return None
+    imgs = sorted(img_dir.glob("*.png"), key=lambda f: f.stat().st_mtime, reverse=True)
+    return imgs[0] if imgs else None
+
+
 def open_path(target_path: str) -> str:
     """
-    Opens any file or folder on the Windows laptop with its default associated application or File Explorer.
-    Supports shortcuts like 'output', 'images', 'downloads', 'desktop', 'documents', or any path.
+    Open a file or folder in Windows File Explorer or the default Windows application.
+    Supports shortcuts like 'output', 'images', 'recent image', 'downloads', 'desktop', 'documents', or any path.
     """
     target = target_path.strip().strip('"\'')
     low = target.lower()
 
-    # Common folder aliases
-    if low in ["images", "output/images", "output images", "image folder", "images folder"]:
+    # Common folder & image aliases
+    if any(k in low for k in [
+        "recent image", "latest image", "last image", "the image",
+        "generated image", "revent image", "revently generated", "recently generated"
+    ]) or low in ["image", "recent", "latest"]:
+        latest = get_latest_image()
+        if latest:
+            resolved = latest
+        else:
+            resolved = DEFAULT_WORKSPACE / "output" / "images"
+    elif low in ["images", "output/images", "output images", "image folder", "images folder"]:
         resolved = DEFAULT_WORKSPACE / "output" / "images"
     elif low in ["output", "output folder"]:
         resolved = DEFAULT_WORKSPACE / "output"
@@ -422,18 +444,88 @@ def launch_app(app_name: str) -> str:
         return f"Error launching '{app_name}': {str(e)}"
 
 
-def render_terminal_image(image_path: str, max_width: int = 36) -> str:
+class TerminalLoader:
     """
-    Renders an image directly into the terminal using 24-bit ANSI truecolor half-blocks.
+    High-clarity animated terminal loader with live elapsed time.
+    Cleanly removes/wipes the line from stdout on exit so that
+    subsequent output displays without leftover loader text.
     """
-    import sys
+    def __init__(self, message: str = "Generating image", style: str = "dots"):
+        self.message = message
+        self.is_running = False
+        self._thread = None
+        self.start_time = 0.0
+        self.elapsed = 0.0
+        self.frames = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
+        self._ensure_utf8()
+
+    @staticmethod
+    def _ensure_utf8():
+        if hasattr(sys.stdout, "reconfigure"):
+            try:
+                sys.stdout.reconfigure(encoding="utf-8")
+            except Exception:
+                pass
+
+    def __enter__(self):
+        self.start()
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.stop()
+
+    def start(self):
+        self.is_running = True
+        self.start_time = time.perf_counter()
+        self._thread = threading.Thread(target=self._animate, daemon=True)
+        self._thread.start()
+
+    def _animate(self):
+        idx = 0
+        while self.is_running:
+            self.elapsed = time.perf_counter() - self.start_time
+            frame = self.frames[idx % len(self.frames)]
+            line = f"\r\033[1;36m{frame}\033[0m \033[1m{self.message}...\033[0m \033[33m({self.elapsed:.1f}s)\033[0m   "
+            try:
+                sys.stdout.write(line)
+                sys.stdout.flush()
+            except Exception:
+                pass
+            idx += 1
+            time.sleep(0.08)
+
+    def stop(self):
+        if not self.is_running:
+            return
+        self.is_running = False
+        if self._thread and self._thread.is_alive():
+            self._thread.join(timeout=0.6)
+        self.elapsed = time.perf_counter() - self.start_time
+        # Completely clear/wipe the loader line from the terminal
+        try:
+            sys.stdout.write("\r\033[2K" + " " * 80 + "\r\033[2K\r")
+            sys.stdout.flush()
+        except Exception:
+            pass
+
+
+def render_terminal_image(
+    image_path: str,
+    max_width: Optional[int] = None,
+    elapsed_time: Optional[float] = None
+) -> str:
+    """
+    Renders an ultra-clear, high-fidelity visual preview directly in the terminal
+    using 24-bit ANSI TrueColor half-blocks, Lanczos anti-aliasing resampling,
+    contrast/sharpness enhancement, and a sleek border frame.
+    """
     if hasattr(sys.stdout, "reconfigure"):
         try:
             sys.stdout.reconfigure(encoding="utf-8")
         except Exception:
             pass
 
-    from PIL import Image
+    from PIL import Image, ImageEnhance
     try:
         p = Path(image_path)
         if not p.is_absolute():
@@ -442,23 +534,165 @@ def render_terminal_image(image_path: str, max_width: int = 36) -> str:
             return f"[Image file not found: {image_path}]"
 
         img = Image.open(str(p)).convert("RGB")
-        aspect = img.height / img.width
-        height = max(1, int(max_width * aspect * 0.45))
-        img = img.resize((max_width, height * 2), Image.Resampling.BILINEAR)
+        orig_w, orig_h = img.size
+
+        # Enhance sharpness and contrast for terminal half-block rendering
+        try:
+            img = ImageEnhance.Sharpness(img).enhance(1.30)
+            img = ImageEnhance.Contrast(img).enhance(1.15)
+        except Exception:
+            pass
+
+        # Determine optimal terminal width
+        term_cols = shutil.get_terminal_size((80, 24)).columns
+        if max_width is None:
+            # Leave margin for borders and terminal padding (fits nicely on 80+ col terminals)
+            width = max(44, min(term_cols - 6, 68))
+        else:
+            width = max(24, min(max_width, term_cols - 4))
+
+        aspect = orig_h / orig_w
+        # Half-blocks pack 2 vertical pixels into 1 character row
+        # Terminal characters have ~1:2 width:height ratio
+        h_rows = max(1, int(width * aspect * 0.48))
+        target_h = h_rows * 2
+
+        img = img.resize((width, target_h), Image.Resampling.LANCZOS)
         pixels = img.load()
 
-        lines = []
-        for y in range(0, height * 2 - 1, 2):
-            line_parts = []
-            for x in range(max_width):
+        # Build framed presentation
+        time_tag = f" • {elapsed_time:.1f}s" if elapsed_time is not None else ""
+        header_text = f" ✨ AI Image Preview • {orig_w}x{orig_h}{time_tag} "
+        if len(header_text) < width:
+            dash_count = width - len(header_text)
+            l_dash = "─" * 2
+            r_dash = "─" * max(0, dash_count - 2)
+            top_border = f"\033[90m┌{l_dash}\033[1;36m{header_text}\033[0m\033[90m{r_dash}┐\033[0m"
+        else:
+            dashes = "─" * width
+            top_border = f"\033[90m┌{dashes}┐\033[0m"
+
+        lines = [top_border]
+        for y in range(0, target_h, 2):
+            row_parts = ["\033[90m│\033[0m"]
+            for x in range(width):
                 r_top, g_top, b_top = pixels[x, y]
-                r_bot, g_bot, b_bot = pixels[x, y + 1]
-                line_parts.append(f"\033[38;2;{r_top};{g_top};{b_top}m\033[48;2;{r_bot};{g_bot};{b_bot}m▀")
-            lines.append("".join(line_parts) + "\033[0m")
+                if y + 1 < target_h:
+                    r_bot, g_bot, b_bot = pixels[x, y + 1]
+                else:
+                    r_bot, g_bot, b_bot = (0, 0, 0)
+                row_parts.append(f"\033[38;2;{r_top};{g_top};{b_top}m\033[48;2;{r_bot};{g_bot};{b_bot}m▀")
+            row_parts.append("\033[0m\033[90m│\033[0m")
+            lines.append("".join(row_parts))
+
+        footer_text = f" 📁 {p.name} "
+        if len(footer_text) >= width:
+            footer_text = f" 📁 {p.name[:max(6, width - 10)]}... "
+        if len(footer_text) < width:
+            dash_count = width - len(footer_text)
+            l_dash = "─" * 2
+            r_dash = "─" * max(0, dash_count - 2)
+            bot_border = f"\033[90m└{l_dash}\033[37m{footer_text}\033[0m\033[90m{r_dash}┘\033[0m"
+        else:
+            dashes = "─" * width
+            bot_border = f"\033[90m└{dashes}┘\033[0m"
+        lines.append(bot_border)
 
         return "\n".join(lines)
     except Exception as e:
         return f"[Terminal preview unavailable: {str(e)}]"
+
+
+def enhance_image_clarity(
+    image_path: Optional[str] = None,
+    output_dir: Optional[str] = None
+) -> Dict[str, Any]:
+    """
+    Enhances clarity, resolution, and sharpness of an existing or recently generated image.
+    Applies 2x super-resolution upscaling (Lanczos), unsharp mask filtering, and
+    contrast/color/sharpness boosts.
+    """
+    if hasattr(sys.stdout, "reconfigure"):
+        try:
+            sys.stdout.reconfigure(encoding="utf-8")
+        except Exception:
+            pass
+
+    from PIL import Image, ImageFilter, ImageEnhance
+
+    # Find target image
+    target_p = None
+    if image_path and image_path.strip().lower() not in [
+        "recent", "latest", "the image", "image", "recent image", "existing image", "the existing image"
+    ]:
+        p = Path(image_path)
+        if not p.is_absolute():
+            p = (DEFAULT_WORKSPACE / p).resolve()
+        if p.exists() and p.is_file():
+            target_p = p
+
+    if target_p is None:
+        target_p = get_latest_image()
+
+    if target_p is None or not target_p.exists():
+        return {
+            "status": "error",
+            "message": "No recent image found in output/images to enhance."
+        }
+
+    out_folder = Path(output_dir) if output_dir else (DEFAULT_WORKSPACE / "output" / "images")
+    out_folder.mkdir(parents=True, exist_ok=True)
+
+    timestamp = time.strftime("%Y%m%d_%H%M%S")
+    stem = target_p.stem.replace("ziskare_", "").replace("enhanced_", "")[:20]
+    out_file = out_folder / f"ziskare_enhanced_{stem}_{timestamp}.png"
+
+    loader = TerminalLoader("Enhancing image clarity")
+    loader.start()
+    try:
+        img = Image.open(target_p).convert("RGB")
+        orig_w, orig_h = img.size
+
+        # 2x Super-resolution upscaling (capped at 2048 for high responsiveness)
+        new_w = min(2048, orig_w * 2)
+        new_h = min(2048, orig_h * 2)
+        img_upscaled = img.resize((new_w, new_h), Image.Resampling.LANCZOS)
+
+        # Crisp unsharp masking for edge clarity and fine texture definition
+        img_enhanced = img_upscaled.filter(ImageFilter.UnsharpMask(radius=2, percent=145, threshold=3))
+
+        # Sharpness, contrast, and subtle color pop
+        img_enhanced = ImageEnhance.Sharpness(img_enhanced).enhance(1.30)
+        img_enhanced = ImageEnhance.Contrast(img_enhanced).enhance(1.14)
+        img_enhanced = ImageEnhance.Color(img_enhanced).enhance(1.08)
+
+        img_enhanced.save(out_file, format="PNG", quality=95)
+    finally:
+        loader.stop()
+        elapsed = round(loader.elapsed, 2)
+
+    sz_kb = round(out_file.stat().st_size / 1024, 1)
+
+    # Render terminal preview of the enhanced image
+    preview = render_terminal_image(str(out_file), elapsed_time=elapsed)
+    print(f"\n\033[1;32m✨ Image clarity enhanced in {elapsed:.1f}s\033[0m \033[90m({orig_w}x{orig_h} -> {new_w}x{new_h})\033[0m", flush=True)
+    print(preview, flush=True)
+    print(f"\033[1m📁 Enhanced Image Saved:\033[0m {out_file} ({sz_kb} KB)\n", flush=True)
+
+    try:
+        open_path(str(out_file))
+    except Exception:
+        pass
+
+    return {
+        "status": "success",
+        "file_path": str(out_file),
+        "original_path": str(target_p),
+        "dimensions": f"{new_w}x{new_h}",
+        "original_dimensions": f"{orig_w}x{orig_h}",
+        "size_kb": sz_kb,
+        "time_taken": elapsed
+    }
 
 
 def find_files(query: str, search_dir: Optional[str] = None, max_results: int = 15) -> str:
@@ -489,6 +723,9 @@ AVAILABLE_TOOLS = {
     "launch_app": launch_app,
     "find_files": find_files,
     "render_terminal_image": render_terminal_image,
+    "enhance_image_clarity": enhance_image_clarity,
+    "get_latest_image": get_latest_image,
+    "TerminalLoader": TerminalLoader,
     "get_system_stats": get_system_stats,
     "clean_temp_files": clean_temp_files,
     "flush_system_memory": flush_system_memory,

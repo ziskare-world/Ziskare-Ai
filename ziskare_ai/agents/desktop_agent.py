@@ -73,6 +73,14 @@ class DesktopAgent(BaseAgent):
             app = re.sub(r'^(?:please\s+)?(?:launch|start|open|run)\s+(?:the\s+)?(?:app\s+|application\s+)?', '', prompt, flags=re.IGNORECASE).strip(" .")
             return self.launch(app)
 
+        # Check open recent/latest image
+        if any(w in low for w in [
+            "recent image", "latest image", "last image", "the image",
+            "open image", "show image", "revent image", "revently generated",
+            "recently generated", "open the recent image", "open recent", "open the recent"
+        ]):
+            return self.open("latest image")
+
         # Check open folder / file
         if any(w in low for w in ["open folder", "open directory", "show in explorer", "open file", "open the file", "open the folder", "open images", "open output", "open downloads"]):
             target = re.sub(r'^(?:please\s+)?(?:open|show)\s+(?:the\s+)?(?:folder\s+|directory\s+|file\s+)?(?:called\s+|named\s+)?', '', prompt, flags=re.IGNORECASE).strip(" .")

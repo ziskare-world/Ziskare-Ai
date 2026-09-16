@@ -180,11 +180,16 @@ Or from the command line:
 ziskare-ai --agent code "Write a fast hash function"
 ziskare-ai --agent system "Check system status"
 ziskare-ai --agent task "Calculate 125 * 38"
-ziskare-ai --image "A glowing dragon over misty mountains, 8k"
+ziskare-ai --image "A glowing dragon over misty mountains, 8k" # Generates with animated loader & crystal-clear terminal preview
+ziskare-ai --open "recent image"       # Instantly opens recently generated image
 ziskare-ai --open output/images        # Open folder/file in Windows Explorer
 
 # Interactive Multi-Turn Shell (remembers all previous conversation & tasks):
 ziskare-ai
+# In chat: "generate an image of a cybernetic tiger"
+# In chat: "enhance the clarity of the image" (upscales & sharpens existing image)
+# In chat: "open the recent image" (opens latest image in default viewer)
+# In chat: "tell me about the image" (shows metadata & resolution)
 
 # 1-Click Laptop Hardware & Thermal Optimization
 ziskare-ai --optimize                  # Full cleanup: RAM flush, cache purge, thermal cooldown

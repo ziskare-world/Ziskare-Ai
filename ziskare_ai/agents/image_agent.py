@@ -16,7 +16,12 @@ from typing import Optional, Any, Dict
 from PIL import Image, ImageDraw
 
 from ziskare_ai.agents.base import BaseAgent
-from ziskare_ai.agents.tools import DEFAULT_WORKSPACE
+from ziskare_ai.agents.tools import (
+    DEFAULT_WORKSPACE,
+    TerminalLoader,
+    render_terminal_image,
+    open_path
+)
 
 IMAGE_SYSTEM_PROMPT = (
     "You are the Ziskare Image Agent, an elite AI visual artist, prompt engineer, and graphics specialist. "
@@ -72,6 +77,13 @@ class ImageAgent(BaseAgent):
             # Fallback prompt enrichment
             return f"{user_prompt}, highly detailed, {style}, sharp focus, 8k resolution, cinematic lighting"
 
+    def enhance_clarity(self, image_path: Optional[str] = None) -> Dict[str, Any]:
+        """
+        Enhance clarity, resolution, and sharpness of an existing or recently generated image.
+        """
+        from ziskare_ai.agents.tools import enhance_image_clarity
+        return enhance_image_clarity(image_path=image_path, output_dir=str(self.output_dir))
+
     def generate(
         self,
         prompt: str,
@@ -112,44 +124,52 @@ class ImageAgent(BaseAgent):
 
         backend_used = backend
         success = False
+        elapsed = 0.0
 
-        # 1. Try local diffusers if requested or available
-        if backend in ["diffusers", "local"]:
-            success = self._generate_diffusers(enhanced_prompt, width, height, out_file)
-            backend_used = "diffusers"
+        # Beautiful animated loader showing live elapsed time
+        loader = TerminalLoader("Generating image")
+        if not self.silent:
+            loader.start()
 
-        # 2. Auto / Neural backend
-        if not success and backend in ["auto", "neural", "pollinations"]:
+        try:
+            # 1. Try local diffusers if requested or available
+            if backend in ["diffusers", "local"]:
+                success = self._generate_diffusers(enhanced_prompt, width, height, out_file)
+                backend_used = "diffusers"
+
+            # 2. Auto / Neural backend
+            if not success and backend in ["auto", "neural", "pollinations"]:
+                success = self._generate_neural(enhanced_prompt, width, height, out_file, seed=seed)
+                if success:
+                    backend_used = "neural"
+
+            # 3. Offline Procedural Fallback
+            if not success:
+                self._generate_procedural(enhanced_prompt, width, height, out_file)
+                backend_used = "procedural"
+                success = True
+        finally:
             if not self.silent:
-                print(f"[ImageAgent] Generating image via neural synthesis engine...", flush=True)
-            success = self._generate_neural(enhanced_prompt, width, height, out_file, seed=seed)
-            if success:
-                backend_used = "neural"
-
-        # 3. Offline Procedural Fallback
-        if not success:
-            if not self.silent:
-                print(f"[ImageAgent] Falling back to 100% offline procedural visual rendering...", flush=True)
-            self._generate_procedural(enhanced_prompt, width, height, out_file)
-            backend_used = "procedural"
-            success = True
+                loader.stop()
+            elapsed = round(loader.elapsed, 2)
 
         file_size = out_file.stat().st_size if out_file.exists() else 0
 
-        # Render terminal visual preview and open image
+        # Render ultra-clear terminal visual preview and open image on desktop
         terminal_preview = ""
         try:
-            from ziskare_ai.agents.tools import render_terminal_image, open_path
-            terminal_preview = render_terminal_image(str(out_file), max_width=40)
-            print("\n" + terminal_preview + "\n", flush=True)
-            print(f"[ImageAgent] Image generated successfully -> {out_file} ({file_size / 1024:.1f} KB)", flush=True)
+            terminal_preview = render_terminal_image(str(out_file), elapsed_time=elapsed)
+            if not self.silent:
+                print(f"\n\033[1;32m✨ Image generated in {elapsed:.1f}s\033[0m \033[90m({width}x{height} | {backend_used})\033[0m", flush=True)
+                print(terminal_preview, flush=True)
+                print(f"\033[1m📁 Saved:\033[0m {out_file} ({file_size / 1024:.1f} KB)\n", flush=True)
             try:
                 open_path(str(out_file))
             except Exception:
                 pass
         except Exception:
             if not self.silent:
-                print(f"[ImageAgent] Image generated successfully -> {out_file} ({file_size / 1024:.1f} KB)", flush=True)
+                print(f"\n[ImageAgent] Image generated in {elapsed:.1f}s -> {out_file} ({file_size / 1024:.1f} KB)", flush=True)
 
         return {
             "status": "success",
@@ -160,7 +180,8 @@ class ImageAgent(BaseAgent):
             "backend": backend_used,
             "dimensions": f"{width}x{height}",
             "size_bytes": file_size,
-            "size_kb": round(file_size / 1024, 1)
+            "size_kb": round(file_size / 1024, 1),
+            "time_taken": elapsed
         }
 
     def _generate_neural(

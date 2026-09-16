@@ -287,7 +287,88 @@ class ZiskareAI:
             res = agent.run(user_input, max_new_tokens=600)
             return ("CodeAgent", res, True)
 
-        # 5. Image Generation Specialist intent
+        # 5a. Image Clarity Enhancement intent
+        enhance_triggers = [
+            "enhance clarity", "enhance clearity", "make it clearer", "increase clarity",
+            "sharpen image", "enhance image", "enhance the image", "enhance existing image",
+            "enhance the existing image", "enhance recent image", "upscale image",
+            "clearer image", "improve clarity", "improve image clarity", "better clarity",
+            "make the image clear", "make image clear", "enhance the clearity of the image",
+            "enhance the clearity of the existing image", "make it clear", "make image clearer",
+            "clarity of the image", "clearity of the image", "clearity of the existing image"
+        ]
+        has_enhance = any(t in low for t in enhance_triggers) or (
+            ("enhance" in low or "sharpen" in low or "upscale" in low or "clearer" in low or "clarity" in low or "clearity" in low) and
+            ("image" in low or "picture" in low or "photo" in low or "existing" in low)
+        )
+        if has_enhance:
+            agent = self.get_agent("image")
+            res = agent.enhance_clarity()
+            if res.get("status") == "success":
+                obs = (
+                    f"Image Clarity Enhancement Complete:\n"
+                    f"- Enhanced File: {res['file_path']}\n"
+                    f"- Original Source: {res['original_path']}\n"
+                    f"- Enhanced Resolution: {res['dimensions']} (from {res['original_dimensions']})\n"
+                    f"- File Size: {res['size_kb']} KB\n"
+                    f"- Time Taken: {res['time_taken']}s\n"
+                    f"- Processing: Super-resolution 2x upscaling, Lanczos anti-aliasing, unsharp masking, and sharpness/contrast boost."
+                )
+                return ("ImageAgent", obs, False)
+            else:
+                return ("ImageAgent", res.get("message", "Could not enhance image."), False)
+
+        # 5b. Open recent/latest image intent
+        open_image_triggers = [
+            "open recent image", "open the recent image", "open the image", "open image",
+            "open latest image", "show recent image", "show the image", "open revent image",
+            "open revently generated image", "open the revently generated image",
+            "open the recently generated image", "show the recently generated image",
+            "open recent", "open the recent"
+        ]
+        has_open_image = any(t in low for t in open_image_triggers) or (
+            ("open" in low or "show" in low) and
+            any(k in low for k in ["recent image", "latest image", "last image", "the image", "revently generated", "recently generated"])
+        )
+        if has_open_image:
+            agent = self.get_agent("desktop")
+            res = agent.open("latest image")
+            return ("DesktopAgent", res, False)
+
+        # 5c. Inquiries about the recently generated image
+        image_inquiry_triggers = [
+            "about the image", "about the recent image", "about the generated image",
+            "what is the image", "tell me about the image", "where is the image",
+            "details of the image", "the image details", "recent image details",
+            "what image did you generate", "which image was created", "information about the image"
+        ]
+        has_image_inquiry = any(t in low for t in image_inquiry_triggers) or (
+            ("about" in low or "tell me" in low or "where is" in low or "what is" in low or "details" in low) and
+            ("the image" in low or "recent image" in low or "last image" in low)
+        )
+        if has_image_inquiry:
+            from ziskare_ai.agents.tools import get_latest_image
+            latest = get_latest_image()
+            if latest and latest.exists():
+                from PIL import Image as PILImage
+                try:
+                    with PILImage.open(latest) as im:
+                        dims = f"{im.width}x{im.height}"
+                except Exception:
+                    dims = "unknown"
+                sz_kb = round(latest.stat().st_size / 1024, 1)
+                mtime_str = time.ctime(latest.stat().st_mtime)
+                obs = (
+                    f"Recently Generated Image Information:\n"
+                    f"- File Path: {latest}\n"
+                    f"- Dimensions: {dims}\n"
+                    f"- File Size: {sz_kb} KB\n"
+                    f"- Created: {mtime_str}\n"
+                    f"- File Name: {latest.name}"
+                )
+                return ("ImageAgent", obs, False)
+
+        # 5d. Image Generation Specialist intent
         image_triggers = [
             "generate an image", "generate image", "create an image", "create image",
             "draw an image", "draw image", "make an image", "make image",
@@ -309,6 +390,7 @@ class ZiskareAI:
             res = agent.generate(clean_prompt)
             obs = (
                 f"Image Generation Complete:\n"
+                f"- Time Taken: {res.get('time_taken', 0.0)}s\n"
                 f"- File Saved: {res['file_path']}\n"
                 f"- Resolution: {res['dimensions']}\n"
                 f"- File Size: {res['size_kb']} KB\n"
