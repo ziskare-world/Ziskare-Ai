@@ -1,0 +1,11 @@
+<resources>
+    <!-- Base application theme. -->
+    <style name="Theme.ZiskareAI" parent="Theme.MaterialComponents.DayNight.NoActionBar">
+        <item name="colorPrimary">@color/chatgpt_accent</item>
+        <item name="colorPrimaryVariant">@color/chatgpt_card</item>
+        <item name="colorOnPrimary">@color/white</item>
+        <item name="android:windowBackground">@color/chatgpt_bg</item>
+        <item name="android:statusBarColor">@color/chatgpt_bg</item>
+        <item name="android:navigationBarColor">@color/chatgpt_bg</item>
+    </style>
+</resources>

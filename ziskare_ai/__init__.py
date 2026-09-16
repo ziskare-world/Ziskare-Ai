@@ -30,6 +30,9 @@ def __getattr__(name: str):
     if name == "ZiskareAI":
         from ziskare_ai.core import ZiskareAI
         return ZiskareAI
+    elif name == "MobilePipeline":
+        from ziskare_ai.mobile_pipeline import MobilePipeline
+        return MobilePipeline
     elif name in ["PromptEnhancer", "enhance_prompt"]:
         import ziskare_ai.enhancer as _enhancer_mod
         return getattr(_enhancer_mod, name)

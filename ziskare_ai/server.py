@@ -20,8 +20,11 @@ import subprocess
 from pathlib import Path
 from http.server import HTTPServer, ThreadingHTTPServer, BaseHTTPRequestHandler
 from ziskare_ai.core import ZiskareAI
+from ziskare_ai.mobile_pipeline import MobilePipeline, get_local_ip
 
 WORKSPACE_DIR = Path(r"D:\Ziskare-space")
+MOBILE_STATIC_DIR = Path(__file__).resolve().parent / "mobile"
+OUTPUT_IMAGES_DIR = Path(os.getcwd()) / "output" / "images"
 def get_node_server_url():
     port = 3002
     try:
@@ -419,18 +422,21 @@ function askAi(prompt) {
 </html>'''
 
 def create_handler(ai_instance: ZiskareAI):
+    mobile_pipeline = MobilePipeline(ai_instance)
+
     class ZiskareHandler(BaseHTTPRequestHandler):
         def _safe_write(self, data: bytes):
             try:
                 self.wfile.write(data)
             except (ConnectionResetError, BrokenPipeError, Exception):
                 pass
+
         def _set_headers(self, code=200, content_type='application/json'):
             try:
                 self.send_response(code)
                 self.send_header('Content-Type', content_type)
                 self.send_header('Access-Control-Allow-Origin', '*')
-                self.send_header('Access-Control-Allow-Methods', 'POST, GET, OPTIONS')
+                self.send_header('Access-Control-Allow-Methods', 'POST, GET, OPTIONS, DELETE')
                 self.send_header('Access-Control-Allow-Headers', 'Content-Type, Authorization')
                 self.end_headers()
             except (ConnectionResetError, BrokenPipeError):
@@ -439,25 +445,111 @@ def create_handler(ai_instance: ZiskareAI):
         def do_OPTIONS(self):
             self._set_headers(200)
 
+        def do_DELETE(self):
+            try:
+                clean_path = self.path.split("?")[0]
+                if clean_path.startswith("/api/mobile/sessions/"):
+                    session_id = clean_path.split("/api/mobile/sessions/")[1].strip()
+                    deleted = mobile_pipeline.delete_session(session_id)
+                    self._set_headers(200)
+                    self._safe_write(json.dumps({"success": deleted, "deleted": session_id}).encode('utf-8'))
+                else:
+                    self._set_headers(404)
+                    self._safe_write(b'{"error": "Endpoint Not Found"}')
+            except Exception as e:
+                self._set_headers(500)
+                self._safe_write(json.dumps({"error": str(e)}).encode('utf-8'))
+
         def do_GET(self):
-            if self.path in ("/", "/index.html"):
+            clean_path = self.path.split("?")[0]
+
+            if clean_path in ("/", "/index.html"):
                 self._set_headers(200, 'text/html; charset=utf-8')
                 self._safe_write(RESCUE_CONSOLE_HTML.encode('utf-8'))
 
-            elif self.path == "/health":
+            # Mobile Web / PWA Endpoints
+            elif clean_path in ("/mobile", "/mobile/", "/mobile/index.html"):
+                index_file = MOBILE_STATIC_DIR / "index.html"
+                if index_file.exists():
+                    self._set_headers(200, 'text/html; charset=utf-8')
+                    self._safe_write(index_file.read_bytes())
+                else:
+                    self._set_headers(404)
+                    self._safe_write(b'{"error": "Mobile client not found"}')
+
+            elif clean_path == "/mobile/manifest.json":
+                manifest_file = MOBILE_STATIC_DIR / "manifest.json"
+                if manifest_file.exists():
+                    self._set_headers(200, 'application/manifest+json')
+                    self._safe_write(manifest_file.read_bytes())
+                else:
+                    self._set_headers(404)
+
+            elif clean_path == "/mobile/sw.js":
+                sw_file = MOBILE_STATIC_DIR / "sw.js"
+                if sw_file.exists():
+                    self._set_headers(200, 'application/javascript')
+                    self._safe_write(sw_file.read_bytes())
+                else:
+                    self._set_headers(404)
+
+            # Mobile Pipeline REST APIs
+            elif clean_path == "/api/mobile/sessions":
+                self._set_headers(200)
+                sessions = mobile_pipeline.list_sessions()
+                self._safe_write(json.dumps({"sessions": sessions}).encode('utf-8'))
+
+            elif clean_path.startswith("/api/mobile/sessions/"):
+                session_id = clean_path.split("/api/mobile/sessions/")[1].strip()
+                sess_data = mobile_pipeline.get_session(session_id)
+                if sess_data is not None:
+                    self._set_headers(200)
+                    self._safe_write(json.dumps(sess_data).encode('utf-8'))
+                else:
+                    self._set_headers(404)
+                    self._safe_write(b'{"error": "Session Not Found"}')
+
+            elif clean_path == "/api/mobile/memory":
+                self._set_headers(200)
+                mem = mobile_pipeline.get_memories()
+                self._safe_write(json.dumps(mem).encode('utf-8'))
+
+            elif clean_path == "/api/mobile/status":
+                self._set_headers(200)
+                status = mobile_pipeline.get_laptop_status()
+                self._safe_write(json.dumps(status).encode('utf-8'))
+
+            elif clean_path == "/api/mobile/pairing":
+                self._set_headers(200)
+                pair_info = mobile_pipeline.get_pairing_info()
+                self._safe_write(json.dumps(pair_info).encode('utf-8'))
+
+            elif clean_path.startswith("/api/mobile/image/"):
+                img_name = Path(clean_path.split("/api/mobile/image/")[1].strip()).name
+                img_file = OUTPUT_IMAGES_DIR / img_name
+                if img_file.exists():
+                    c_type = "image/png" if img_name.lower().endswith(".png") else "image/jpeg"
+                    self._set_headers(200, c_type)
+                    self._safe_write(img_file.read_bytes())
+                else:
+                    self._set_headers(404)
+                    self._safe_write(b'{"error": "Image Not Found"}')
+
+            # Desktop/System APIs
+            elif clean_path == "/health":
                 self._set_headers(200)
                 payload = {
                     "status": "healthy",
                     "service": "Ziskare AI",
-                    "device": str(ai_instance.model.device),
+                    "device": str(ai_instance.model.device) if hasattr(ai_instance, "model") and hasattr(ai_instance.model, "device") else "cuda",
                     "node_server_running": is_node_server_running()
                 }
                 self._safe_write(json.dumps(payload).encode())
 
-            elif self.path == "/api/system":
+            elif clean_path == "/api/system":
                 self._set_headers(200)
                 data = get_system_telemetry()
-                data["ai_device"] = str(ai_instance.model.device)
+                data["ai_device"] = str(ai_instance.model.device) if hasattr(ai_instance, "model") and hasattr(ai_instance.model, "device") else "cuda"
                 self._safe_write(json.dumps(data).encode())
 
             else:
@@ -473,7 +565,35 @@ def create_handler(ai_instance: ZiskareAI):
                 except Exception:
                     data = {}
 
-                if self.path == "/ask":
+                clean_path = self.path.split("?")[0]
+
+                # Mobile API: Zero-Load Chat
+                if clean_path == "/api/mobile/chat":
+                    msg = data.get("message", "") or data.get("prompt", "")
+                    sess_id = data.get("session_id", None)
+                    temp = float(data.get("temperature", 0.3))
+                    max_tokens = int(data.get("max_new_tokens", 350))
+                    result = mobile_pipeline.process_chat(
+                        message=msg,
+                        session_id=sess_id,
+                        temperature=temp,
+                        max_new_tokens=max_tokens
+                    )
+                    self._set_headers(200)
+                    self._safe_write(json.dumps(result).encode('utf-8'))
+
+                elif clean_path == "/api/mobile/sessions/new":
+                    title = data.get("title", "New Conversation")
+                    sess = mobile_pipeline.create_session(title=title)
+                    self._set_headers(200)
+                    self._safe_write(json.dumps(sess).encode('utf-8'))
+
+                elif clean_path == "/api/mobile/memory":
+                    updated = mobile_pipeline.update_memory(data)
+                    self._set_headers(200)
+                    self._safe_write(json.dumps(updated).encode('utf-8'))
+
+                elif clean_path == "/ask":
                     prompt = data.get("prompt", "") or data.get("message", "")
                     max_tokens = int(data.get("max_new_tokens", 256))
                     temp = float(data.get("temperature", 0.3))
@@ -490,7 +610,7 @@ def create_handler(ai_instance: ZiskareAI):
                     self._set_headers(200)
                     self._safe_write(json.dumps(result).encode('utf-8'))
 
-                elif self.path == "/chat":
+                elif clean_path == "/chat":
                     msg = data.get("message", "") or data.get("prompt", "")
                     max_tokens = int(data.get("max_new_tokens", 256))
                     temp = float(data.get("temperature", 0.3))
@@ -514,13 +634,13 @@ def create_handler(ai_instance: ZiskareAI):
                     payload = {"reply": reply, "answer": reply, "stats": stats}
                     self._safe_write(json.dumps(payload).encode('utf-8'))
 
-                elif self.path == "/api/server/control":
+                elif clean_path == "/api/server/control":
                     action = data.get("action", "status")
                     result = control_node_server(action)
                     self._set_headers(200 if result.get("success", True) else 500)
                     self._safe_write(json.dumps(result).encode('utf-8'))
 
-                elif self.path == "/api/server/fs":
+                elif clean_path == "/api/server/fs":
                     action = data.get("action", "read")
                     path_str = data.get("path", "")
                     content = data.get("content", None)
@@ -528,13 +648,13 @@ def create_handler(ai_instance: ZiskareAI):
                     self._set_headers(200 if result.get("success", True) else 400)
                     self._safe_write(json.dumps(result).encode('utf-8'))
 
-                elif self.path == "/api/server/logs":
+                elif clean_path == "/api/server/logs":
                     max_lines = int(data.get("lines", 50))
                     logs = get_server_logs(max_lines)
                     self._set_headers(200)
                     self._safe_write(json.dumps({"logs": logs}).encode('utf-8'))
 
-                elif self.path == "/reset":
+                elif clean_path == "/reset":
                     ai_instance.reset()
                     self._set_headers(200)
                     self._safe_write(b'{"status": "memory_reset"}')
@@ -556,17 +676,20 @@ def create_handler(ai_instance: ZiskareAI):
     return ZiskareHandler
 
 
-def run_server(port: int = 5005, host: str = "127.0.0.1", ai_instance: ZiskareAI = None):
-    """Launch the autonomous Ziskare AI REST API and Rescue Server."""
+def run_server(port: int = 5005, host: str = "0.0.0.0", ai_instance: ZiskareAI = None):
+    """Launch the autonomous Ziskare AI REST API, Rescue Server, and Mobile Pipeline."""
     if ai_instance is None:
         ai_instance = ZiskareAI()
 
+    lan_ip = get_local_ip()
     handler = create_handler(ai_instance)
     server = ThreadingHTTPServer((host, port), handler)
     print(f"\n=======================================================", flush=True)
-    print(f"  Ziskare AI - Autonomous Operations & Rescue Service", flush=True)
-    print(f"  Console UI: http://{host}:{port}", flush=True)
-    print(f"  API Endpoints: /ask, /chat, /api/system, /api/server/control", flush=True)
+    print(f"  Ziskare AI - Server & Mobile Intelligence Pipeline", flush=True)
+    print(f"  Rescue Console:  http://localhost:{port}", flush=True)
+    print(f"  Mobile Web App:  http://{lan_ip}:{port}/mobile", flush=True)
+    print(f"  Mobile API:      http://{lan_ip}:{port}/api/mobile", flush=True)
+    print(f"  Zero-Load Mode:  Laptop stores memory & runs GPU inference", flush=True)
     print(f"  Press Ctrl+C to shutdown.", flush=True)
     print(f"=======================================================\n", flush=True)
     try:

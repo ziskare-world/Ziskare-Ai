@@ -29,6 +29,7 @@ def main():
         print("  ziskare-ai --open [file/folder/app]               Open file, folder, or launch app on laptop")
         print("  ziskare-ai --optimize [clean|cool|auto|bench]     Optimize laptop RAM, clean temp files & reduce heat")
         print("  ziskare-ai --server [port]                        Start local REST API server (default: 5005)")
+        print("  ziskare-ai --mobile [port]                        Launch mobile pipeline & phone pairing server")
         print("  ziskare-ai --help                                 Show this help message\n")
         return
 
@@ -225,9 +226,15 @@ def main():
                 break
         return
 
-    # REST Server mode
-    if "--server" in args:
-        idx = args.index("--server")
+    # REST Server & Mobile Pipeline mode
+    server_flag = None
+    for flag in ["--server", "--mobile", "--serve", "server", "mobile"]:
+        if flag in args:
+            server_flag = flag
+            break
+
+    if server_flag:
+        idx = args.index(server_flag)
         port = 5005
         if idx + 1 < len(args) and args[idx + 1].isdigit():
             port = int(args[idx + 1])

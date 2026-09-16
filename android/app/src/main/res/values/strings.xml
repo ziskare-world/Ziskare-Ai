@@ -1,0 +1,7 @@
+<resources>
+    <string name="app_name">Ziskare AI</string>
+    <string name="connect_laptop">Connect to Laptop</string>
+    <string name="laptop_ip_hint">192.168.1.X or 10.0.0.X</string>
+    <string name="connect_btn">Connect Pipeline</string>
+    <string name="laptop_offline">Cannot reach laptop. Ensure laptop runs Ziskare server on same Wi-Fi.</string>
+</resources>

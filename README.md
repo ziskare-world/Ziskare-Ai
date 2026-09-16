@@ -199,8 +199,6 @@ ziskare-ai --optimize auto             # Silent background auto-cooling daemon
 ziskare-ai --optimize bench            # Benchmark thermal status & hardware load
 ```
 
----
-
 ## 🌐 REST API Microservice
 
 Start the built-in HTTP server:
@@ -220,6 +218,44 @@ console.log(data.answer);
 ```
 
 ---
+
+## 📱 Android App & Zero-Load Mobile Pipeline (ChatGPT on Phone)
+
+Use Ziskare AI on your Android phone with a complete ChatGPT dark-mode interface, **without putting heavy compute or battery load on your phone**.
+
+All heavy PyTorch GPU inference, persistent session memory, and generated images stay securely on your laptop.
+
+```
++------------------------------------+           Wi-Fi / LAN           +---------------------------------------------+
+|           ANDROID PHONE            | <=============================> |                LAPTOP / PC                  |
+|                                    |                                 |                                             |
+|  - Full ChatGPT Dark-Mode UI       |   HTTP / REST API (Port 5005)   |  - Ziskare AI Offline Daemon (GPU CUDA)    |
+|  - Pill input & Voice Dictation    |                                 |  - High-load PyTorch LLM Model              |
+|  - Instant code block copy         |   POST /api/mobile/chat         |  - Sessions Disk: data/mobile_sessions/     |
+|  - Sidebar session history         |   GET  /api/mobile/sessions     |  - Long-Term Memory: data/mobile_memory.json|
+|  - Laptop Telemetry Modal          |   GET  /api/mobile/status       |  - Image Generation & Watermark Removal     |
+|  [RAM < 25 MB, Battery Safe]       |                                 |  [All Compute & Heat Stays on Laptop]       |
++------------------------------------+                                 +---------------------------------------------+
+```
+
+### 1. Launch Mobile Server on Laptop:
+```powershell
+ziskare-ai --mobile 5005
+```
+The server will automatically detect your laptop's local LAN IP and display:
+```
+=======================================================
+  Ziskare AI - Server & Mobile Intelligence Pipeline
+  Rescue Console:  http://localhost:5005
+  Mobile Web App:  http://192.168.1.100:5005/mobile
+  Mobile API:      http://192.168.1.100:5005/api/mobile
+  Zero-Load Mode:  Laptop stores memory & runs GPU inference
+=======================================================
+```
+
+### 2. Connect Your Phone:
+- **Instant Web/PWA App**: Open Chrome or Samsung Internet on your phone, visit `http://<laptop-ip>:5005/mobile`, and tap **"Add to Home screen"**.
+- **Native Android Studio App**: Open the `android/` directory in Android Studio and run/build APK onto your Android device. See [`android/README.md`](android/README.md) for full instructions.
 
 ## 🔄 Disaster Recovery (Fresh Windows Re-Setup)
 
