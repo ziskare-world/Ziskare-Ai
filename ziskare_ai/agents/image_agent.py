@@ -217,7 +217,9 @@ class ImageAgent(BaseAgent):
     ) -> bool:
         """Run local offline diffusers pipeline if installed."""
         try:
-            from diffusers import AutoPipelineForText2Image
+            import importlib
+            diffusers = importlib.import_module("diffusers")
+            AutoPipelineForText2Image = getattr(diffusers, "AutoPipelineForText2Image")
             import torch
 
             device = "cuda" if torch.cuda.is_available() else "cpu"
