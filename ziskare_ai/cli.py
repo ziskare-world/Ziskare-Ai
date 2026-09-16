@@ -16,6 +16,23 @@ def get_default_ai(silent: bool = False):
     return _default_instance
 
 
+def start_tunnel(port: int) -> str:
+    """Start an ngrok HTTP tunnel and return the public HTTPS URL.
+    Requires: pip install pyngrok
+    Sign up for a free account at https://ngrok.com and run: ngrok authtoken <token>
+    """
+    try:
+        from pyngrok import ngrok
+        tunnel = ngrok.connect(port, "http")
+        return tunnel.public_url
+    except ImportError:
+        print("[Ziskare AI] pyngrok not installed. Run: pip install pyngrok", flush=True)
+        return ""
+    except Exception as e:
+        print(f"[Ziskare AI] Could not start tunnel: {e}", flush=True)
+        return ""
+
+
 def main():
     args = sys.argv[1:]
 
@@ -28,8 +45,8 @@ def main():
         print("  ziskare-ai --image 'your prompt here'             Generate AI artwork & images")
         print("  ziskare-ai --open [file/folder/app]               Open file, folder, or launch app on laptop")
         print("  ziskare-ai --optimize [clean|cool|auto|bench]     Optimize laptop RAM, clean temp files & reduce heat")
-        print("  ziskare-ai --server [port]                        Start local REST API server (default: 5005)")
-        print("  ziskare-ai --mobile [port]                        Launch mobile pipeline & phone pairing server")
+        print("  ziskare-ai --server [port]                        Start server on this laptop only (default: 5005)")
+        print("  ziskare-ai --server [port] --public               Start server accessible to all devices on the same Wi-Fi")
         print("  ziskare-ai --help                                 Show this help message\n")
         return
 
@@ -226,7 +243,8 @@ def main():
                 break
         return
 
-    # REST Server & Mobile Pipeline mode
+    # ── Unified Server & Mobile Pipeline ──────────────────────────────────────
+    # All of: --server, --mobile, --serve, server, mobile → same run_server()
     server_flag = None
     for flag in ["--server", "--mobile", "--serve", "server", "mobile"]:
         if flag in args:
@@ -238,8 +256,14 @@ def main():
         port = 5005
         if idx + 1 < len(args) and args[idx + 1].isdigit():
             port = int(args[idx + 1])
+
+        # --public → bind to 0.0.0.0 (LAN / other devices on same network)
+        # default  → bind to 127.0.0.1 (this laptop only)
+        want_public = "--public" in args
+        host = "0.0.0.0" if want_public else "127.0.0.1"
+
         from ziskare_ai.server import run_server
-        run_server(port=port)
+        run_server(port=port, host=host)
         return
 
     # Direct query execution

@@ -1,116 +1,76 @@
-<?xml version="1.0" encoding="utf-8"?>
-<androidx.coordinatorlayout.widget.CoordinatorLayout 
+﻿<?xml version="1.0" encoding="utf-8"?>
+<androidx.drawerlayout.widget.DrawerLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/drawerLayout"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="@color/chatgpt_bg">
 
-    <!-- Hardware-Accelerated WebView for zero-load mobile UI -->
-    <androidx.swiperefreshlayout.widget.SwipeRefreshLayout
-        android:id="@+id/swipeRefreshLayout"
+    <!-- Main content area -->
+    <LinearLayout
         android:layout_width="match_parent"
-        android:layout_height="match_parent">
+        android:layout_height="match_parent"
+        android:orientation="vertical">
 
-        <WebView
-            android:id="@+id/webView"
+        <!-- Top toolbar -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="56dp"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:paddingStart="8dp"
+            android:paddingEnd="8dp"
+            android:background="@color/chatgpt_card"
+            android:elevation="4dp">
+
+            <ImageButton
+                android:id="@+id/btnMenu"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
+                android:src="@android:drawable/ic_menu_sort_by_size"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:tint="@color/white"
+                android:contentDescription="Menu" />
+
+            <TextView
+                android:id="@+id/tvTitle"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="Ziskare AI"
+                android:textColor="@color/white"
+                android:textSize="18sp"
+                android:fontFamily="sans-serif-medium"
+                android:paddingStart="12dp"
+                android:singleLine="true"
+                android:ellipsize="end" />
+
+            <ImageButton
+                android:id="@+id/btnSettings"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
+                android:src="@android:drawable/ic_menu_preferences"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:tint="@color/white"
+                android:contentDescription="Settings" />
+        </LinearLayout>
+
+        <!-- Fragment host -->
+        <FrameLayout
+            android:id="@+id/fragmentContainer"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
             android:background="@color/chatgpt_bg" />
-    </androidx.swiperefreshlayout.widget.SwipeRefreshLayout>
-
-    <!-- Top Loading Indicator -->
-    <ProgressBar
-        android:id="@+id/progressBar"
-        style="?android:attr/progressBarStyleHorizontal"
-        android:layout_width="match_parent"
-        android:layout_height="4dp"
-        android:indeterminate="true"
-        android:visibility="gone"
-        android:progressBackgroundTint="@color/chatgpt_card"
-        android:progressTint="@color/chatgpt_accent" />
-
-    <!-- Laptop Connection / Pairing Overlay (shown if disconnected) -->
-    <LinearLayout
-        android:id="@+id/pairingOverlay"
-        android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:orientation="vertical"
-        android:gravity="center"
-        android:padding="28dp"
-        android:background="@color/chatgpt_bg"
-        android:visibility="gone">
-
-        <!-- Logo / Icon -->
-        <TextView
-            android:layout_width="72dp"
-            android:layout_height="72dp"
-            android:gravity="center"
-            android:textSize="38sp"
-            android:text="⚡"
-            android:background="@drawable/rounded_card"
-            android:layout_marginBottom="20dp" />
-
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="Ziskare AI"
-            android:textColor="@color/white"
-            android:textSize="26sp"
-            android:fontFamily="sans-serif-medium"
-            android:layout_marginBottom="6dp" />
-
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="Connect to Laptop Pipeline (Zero Mobile Load)"
-            android:textColor="@color/chatgpt_text_muted"
-            android:textSize="14sp"
-            android:gravity="center"
-            android:layout_marginBottom="28dp" />
-
-        <com.google.android.material.textfield.TextInputLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:textColorHint="@color/chatgpt_text_muted"
-            app:boxBackgroundColor="@color/chatgpt_card"
-            app:boxCornerRadiusBottomEnd="12dp"
-            app:boxCornerRadiusBottomStart="12dp"
-            app:boxCornerRadiusTopEnd="12dp"
-            app:boxCornerRadiusTopStart="12dp"
-            app:boxStrokeColor="@color/chatgpt_accent"
-            app:hintTextColor="@color/chatgpt_accent"
-            android:layout_marginBottom="16dp">
-
-            <com.google.android.material.textfield.TextInputEditText
-                android:id="@+id/etLaptopIp"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:hint="Laptop LAN IP (e.g. 192.168.1.100)"
-                android:inputType="textUri"
-                android:textColor="@color/white"
-                android:singleLine="true" />
-        </com.google.android.material.textfield.TextInputLayout>
-
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/btnConnect"
-            android:layout_width="match_parent"
-            android:layout_height="54dp"
-            android:text="Connect Pipeline"
-            android:textAllCaps="false"
-            android:textSize="16sp"
-            android:backgroundTint="@color/chatgpt_accent"
-            app:cornerRadius="12dp"
-            android:layout_marginBottom="12dp" />
-
-        <TextView
-            android:id="@+id/tvErrorStatus"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:textColor="#EF4444"
-            android:textSize="13sp"
-            android:visibility="gone"
-            android:gravity="center" />
     </LinearLayout>
 
-</androidx.coordinatorlayout.widget.CoordinatorLayout>
+    <!-- Drawer panel (session list) -->
+    <FrameLayout
+        android:id="@+id/drawerContent"
+        android:layout_width="300dp"
+        android:layout_height="match_parent"
+        android:layout_gravity="start"
+        android:background="@color/chatgpt_card"
+        android:elevation="8dp" />
+
+</androidx.drawerlayout.widget.DrawerLayout>

@@ -676,19 +676,33 @@ def create_handler(ai_instance: ZiskareAI):
     return ZiskareHandler
 
 
-def run_server(port: int = 5005, host: str = "0.0.0.0", ai_instance: ZiskareAI = None):
-    """Launch the autonomous Ziskare AI REST API, Rescue Server, and Mobile Pipeline."""
+def run_server(port: int = 5005, host: str = "127.0.0.1", ai_instance: ZiskareAI = None):
+    """Launch the Ziskare AI REST API, Rescue Server, and Mobile Pipeline.
+    
+    host="127.0.0.1" → laptop-only access (default, no --public)
+    host="0.0.0.0"   → accessible from all devices on the same LAN (--public)
+    """
     if ai_instance is None:
         ai_instance = ZiskareAI()
 
     lan_ip = get_local_ip()
+    is_public = host == "0.0.0.0"
     handler = create_handler(ai_instance)
     server = ThreadingHTTPServer((host, port), handler)
+
     print(f"\n=======================================================", flush=True)
-    print(f"  Ziskare AI - Server & Mobile Intelligence Pipeline", flush=True)
-    print(f"  Rescue Console:  http://localhost:{port}", flush=True)
-    print(f"  Mobile Web App:  http://{lan_ip}:{port}/mobile", flush=True)
-    print(f"  Mobile API:      http://{lan_ip}:{port}/api/mobile", flush=True)
+    print(f"  Ziskare AI — Server & Mobile Intelligence Pipeline", flush=True)
+    print(f"  Mode: {'🌐 LAN (other devices can connect)' if is_public else '🔒 Localhost (this laptop only)'}", flush=True)
+    print(f"  ─────────────────────────────────────────────────────", flush=True)
+    if is_public:
+        print(f"  Mobile Web App:  http://{lan_ip}:{port}/mobile", flush=True)
+        print(f"  Mobile API:      http://{lan_ip}:{port}/api/mobile", flush=True)
+        print(f"  ↑ Paste this IP in the Android app to connect", flush=True)
+    else:
+        print(f"  Laptop Only:     http://localhost:{port}", flush=True)
+        print(f"  Laptop Mobile:   http://localhost:{port}/mobile", flush=True)
+        print(f"  Tip: Add --public to allow phone/other devices", flush=True)
+    print(f"  ─────────────────────────────────────────────────────", flush=True)
     print(f"  Zero-Load Mode:  Laptop stores memory & runs GPU inference", flush=True)
     print(f"  Press Ctrl+C to shutdown.", flush=True)
     print(f"=======================================================\n", flush=True)
@@ -696,3 +710,14 @@ def run_server(port: int = 5005, host: str = "0.0.0.0", ai_instance: ZiskareAI =
         server.serve_forever()
     except KeyboardInterrupt:
         print("\n[Ziskare AI] Server shutdown gracefully.", flush=True)
+
+
+if __name__ == "__main__":
+    import sys as _sys
+    _port = 5005
+    _public = "--public" in _sys.argv
+    for _arg in _sys.argv[1:]:
+        if _arg.isdigit():
+            _port = int(_arg)
+    _host = "0.0.0.0" if _public else "127.0.0.1"
+    run_server(port=_port, host=_host)
