@@ -5,7 +5,9 @@ Hardware-accelerated, 100% offline, embedded local AI engine.
 """
 
 import os
+import re
 import time
+from typing import Optional, Dict, Any, Tuple
 import torch
 from transformers import AutoTokenizer, AutoModelForCausalLM
 
@@ -43,6 +45,8 @@ class ZiskareAI:
         self.silent = silent
         self.history = []
         self._agents = {}
+        self._last_image_prompt: Optional[str] = None
+        self._last_image_info: Optional[Dict[str, Any]] = None
 
         if not silent:
             print(f"[Ziskare AI] Initializing {DISPLAY_NAME} Core...", flush=True)
@@ -136,8 +140,125 @@ class ZiskareAI:
             return func(**kwargs)
         elif hasattr(agent, "run"):
             return agent.run(action, **kwargs)
-        else:
-            raise AttributeError(f"Agent {agent_name} has no action '{action}'")
+    def _is_question_or_code(self, text: str) -> bool:
+        low = text.lower()
+        if "?" in text and any(w in low for w in ["how", "what", "why", "which", "where", "who"]):
+            return True
+        if any(w in low for w in ["python", "script", "code", "opencv", "pillow", "algorithm"]):
+            return True
+        return False
+
+    def _resolve_prompt_context(self, prompt: str) -> str:
+        """
+        If the prompt uses pronouns like 'it', 'another one', 'the same',
+        resolve it using the subject from the last generated image.
+        """
+        if not self._last_image_prompt:
+            return prompt
+        last = self._last_image_prompt.strip()
+        return re.sub(r'\b(?:it|another one|the same|this)\b', last, prompt, flags=re.IGNORECASE)
+
+    def _parse_image_generation_request(self, user_input: str) -> Tuple[bool, Optional[str]]:
+        """
+        Intelligently determine if user_input is an imperative image generation request,
+        vs an inquiry/question about an image, coding task, or other topic.
+        Returns (is_generation, clean_prompt).
+        """
+        raw = user_input.strip()
+        low = raw.lower()
+
+        # 1. Non-image modalities (stories, poems, essays, code, etc.)
+        non_visual_generators = [
+            "story", "poem", "essay", "song", "script", "code", "article",
+            "summary", "plan", "table", "list", "function", "class", "algorithm",
+            "html", "css", "program", "app", "website", "test", "doc", "documentation"
+        ]
+        if any(low.startswith(f"generate a {nv}") or low.startswith(f"generate an {nv}") or
+               low.startswith(f"write a {nv}") or low.startswith(f"write an {nv}") or
+               low.startswith(f"create a {nv}") or low.startswith(f"create an {nv}")
+               for nv in non_visual_generators):
+            return False, None
+
+        # 2. Coding tasks involving images (e.g., "write python script to resize an image")
+        code_indicators = [
+            "python", "javascript", "code", "script", "function", "program",
+            "opencv", "cv2", "pillow", "pil", "algorithm", "html", "css",
+            "implement", "write code", "how to code"
+        ]
+        if any(c in low for c in code_indicators) and any(v in low for v in ["write", "create", "build", "how to", "make a script", "code"]):
+            return False, None
+
+        # 3. Direct inquiries / questions about images or past generations
+        inquiry_starters = [
+            "what was", "what is", "what were", "what did", "which animal", "which object",
+            "which subject", "why did", "why is", "how does", "how do", "how can", "how did",
+            "explain", "tell me about", "tell me what", "describe the", "describe what",
+            "who was", "where is", "was the", "is the", "did you", "do you know",
+            "can you explain", "could you explain", "what kind of"
+        ]
+        if any(low.startswith(q) for q in inquiry_starters):
+            return False, None
+
+        # 4. Past-tense conversational phrases about past images
+        past_phrases = [
+            "i just asked you to generate", "you just generated", "you just created",
+            "you generated", "was in the image", "was the image", "in the previous image",
+            "in the last image", "did you generate"
+        ]
+        if any(p in low for p in past_phrases):
+            return False, None
+
+        # 5. Imperative Image Generation patterns
+        # Standard: "generate/create/draw/paint/render/make an image of <prompt>"
+        pattern_std = (
+            r'^(?:please\s+)?(?:can\s+you\s+|could\s+you\s+|would\s+you\s+)?'
+            r'(?:now\s+)?(?:generate|create|draw|paint|render|make)\s+'
+            r'(?:me\s+)?(?:an?\s+)?(?:image|picture|wallpaper|artwork|photo|illustration|drawing|portrait|sketch)\s+'
+            r'(?:of|for|about|with|showing)?\s*(.+)$'
+        )
+        m_std = re.match(pattern_std, raw, re.IGNORECASE)
+        if m_std:
+            clean = m_std.group(1).strip(" :.-")
+            if clean and not self._is_question_or_code(clean):
+                return True, self._resolve_prompt_context(clean)
+
+        # Shorthand artistic creation: "draw/paint/sketch a majestic sunset"
+        pattern_art = (
+            r'^(?:please\s+)?(?:can\s+you\s+|could\s+you\s+)?'
+            r'(?:draw|paint|sketch|render)\s+(?:me\s+)?(?:an?\s+)?(.+)$'
+        )
+        m_art = re.match(pattern_art, raw, re.IGNORECASE)
+        if m_art:
+            clean = m_art.group(1).strip(" :.-")
+            non_art_targets = ["diagram", "chart", "graph", "table", "code", "tree", "flowchart", "ui", "mockup"]
+            if clean and not any(w in clean.lower() for w in non_art_targets) and not self._is_question_or_code(clean):
+                return True, self._resolve_prompt_context(clean)
+
+        # Multi-turn follow-ups: "now make it in the snow", "draw another one with golden wings"
+        pattern_followup = (
+            r'^(?:now\s+)?(?:make|generate|draw|paint|render)\s+'
+            r'(?:it|another\s+one|the\s+same|this)\s+(.+)$'
+        )
+        m_fol = re.match(pattern_followup, raw, re.IGNORECASE)
+        if m_fol:
+            sub = m_fol.group(1).strip(" :.-")
+            return True, self._resolve_prompt_context(f"it {sub}")
+
+        # Strict triggers fallback
+        strict_triggers = [
+            "generate image", "generate an image", "create image", "create an image",
+            "draw image", "draw an image", "make image", "make an image",
+            "generate picture", "generate a picture", "render image", "render an image"
+        ]
+        if any(t in low for t in strict_triggers):
+            clean = re.sub(
+                r'^(?:please\s+)?(?:can\s+you\s+)?(?:generate|create|draw|make|render|paint)\s+(?:an?\s+)?(?:image|picture|wallpaper|artwork|photo)\s+(?:of|for|about|with|showing)?\s*',
+                '', raw, flags=re.IGNORECASE
+            ).strip(" :.-")
+            if clean and not self._is_question_or_code(clean):
+                return True, self._resolve_prompt_context(clean)
+
+        return False, None
 
     def dispatch_agent(self, user_input: str):
         """
@@ -279,8 +400,8 @@ class ZiskareAI:
 
         # 4. Code Specialist intent
         code_verbs = ["write", "code", "debug", "refactor", "review", "implement", "create a function", "create a script"]
-        code_langs = ["python", "javascript", "typescript", "html", "css", "c++", "java", "sql", "bash", "powershell", "function", "script", "regex", "algorithm"]
-        has_code = any(v in low for v in code_verbs) and any(l in low for l in code_langs)
+        code_langs = ["python", "javascript", "typescript", "html", "css", "c++", "java", "sql", "bash", "powershell", "function", "script", "regex", "algorithm", "opencv", "pillow", "cv2", "code", "program"]
+        has_code = (any(v in low for v in code_verbs) and any(l in low for l in code_langs)) or any(p in low for p in ["write code", "create code", "give code", "code for", "script to"])
 
         if has_code:
             agent = self.get_agent("code")
@@ -384,15 +505,18 @@ class ZiskareAI:
             "about the image", "about the recent image", "about the generated image",
             "what is the image", "tell me about the image", "where is the image",
             "details of the image", "the image details", "recent image details",
-            "what image did you generate", "which image was created", "information about the image"
+            "what image did you generate", "which image was created", "information about the image",
+            "what was the animal", "what was in the image", "what did you draw", "which animal",
+            "what was the subject", "describe the image", "what is shown in the image"
         ]
         has_image_inquiry = any(t in low for t in image_inquiry_triggers) or (
-            ("about" in low or "tell me" in low or "where is" in low or "what is" in low or "details" in low) and
-            ("the image" in low or "recent image" in low or "last image" in low)
+            any(q in low for q in ["about", "tell me", "where is", "what is", "what was", "what were", "which", "describe", "details", "explain", "who was", "what did you", "what kind of", "why", "why did", "how did"]) and
+            any(img in low for img in ["the image", "recent image", "last image", "generated image", "image you", "image i asked", "picture you", "picture i", "image created", "this image", "that image", "the picture"])
         )
         if has_image_inquiry:
             from ziskare_ai.agents.tools import get_latest_image
             latest = get_latest_image()
+            prompt_context = self._last_image_prompt or "N/A"
             if latest and latest.exists():
                 from PIL import Image as PILImage
                 try:
@@ -404,6 +528,7 @@ class ZiskareAI:
                 mtime_str = time.ctime(latest.stat().st_mtime)
                 obs = (
                     f"Recently Generated Image Information:\n"
+                    f"- Visual Prompt: {prompt_context}\n"
                     f"- File Path: {latest}\n"
                     f"- Dimensions: {dims}\n"
                     f"- File Size: {sz_kb} KB\n"
@@ -412,26 +537,13 @@ class ZiskareAI:
                 )
                 return ("ImageAgent", obs, False)
 
-        # 5d. Image Generation Specialist intent
-        image_triggers = [
-            "generate an image", "generate image", "create an image", "create image",
-            "draw an image", "draw image", "make an image", "make image",
-            "generate a picture", "generate picture", "draw a picture", "paint an image", "render an image"
-        ]
-        has_image = any(t in low for t in image_triggers) or (
-            ("generate" in low or "create" in low or "draw" in low or "make" in low or "render" in low) and
-            ("image" in low or "picture" in low or "wallpaper" in low or "artwork" in low or "photo" in low)
-        )
-
-        if has_image:
+        # 5d. Intelligent Image Generation Specialist intent
+        is_gen, clean_prompt = self._parse_image_generation_request(user_input)
+        if is_gen and clean_prompt:
             agent = self.get_agent("image")
-            clean_prompt = re.sub(
-                r'^(?:please\s+)?(?:generate|create|draw|make|render|paint)\s+(?:an?\s+)?(?:image|picture|wallpaper|artwork|photo)\s+(?:of|for|about|with)?\s*',
-                '', user_input, flags=re.IGNORECASE
-            ).strip(" :.-")
-            if not clean_prompt:
-                clean_prompt = user_input
             res = agent.generate(clean_prompt)
+            self._last_image_prompt = clean_prompt
+            self._last_image_info = res
             obs = (
                 f"Image Generation Complete:\n"
                 f"- Time Taken: {res.get('time_taken', 0.0)}s\n"
@@ -617,6 +729,8 @@ class ZiskareAI:
     def reset(self):
         """Reset conversation context back to initial system prompt."""
         self.history = [{"role": "system", "content": self.system_prompt}]
+        self._last_image_prompt = None
+        self._last_image_info = None
 
     def export_offline_bundle(self, destination_dir: str):
         """
