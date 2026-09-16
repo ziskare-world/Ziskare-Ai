@@ -6,7 +6,7 @@ All agents execute 100% locally on GPU/CPU with zero network overhead.
 """
 
 from ziskare_ai.core import ZiskareAI
-from agents import CodeAgent, SystemAgent, TaskAgent, AgentOrchestrator
+from ziskare_ai.agents import CodeAgent, SystemAgent, TaskAgent, AgentOrchestrator
 
 print("=======================================================")
 print("     Ziskare AI - Autonomous Agents Showcase")

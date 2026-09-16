@@ -90,6 +90,9 @@ class ZiskareAI:
             device_map=self.device,
             local_files_only=True
         )
+        # Ensure model is strictly in evaluation mode (saves memory, disables dropout)
+        self.model.eval()
+        self.max_history_turns = 8
 
         load_time = time.perf_counter() - start
         if not silent:
@@ -308,9 +311,10 @@ class ZiskareAI:
                 )
                 return ("OptimizerAgent", obs, False)
 
-            # Full optimization if user wants to optimize or both clean and cool
-            if has_optimize or (has_clean and has_cool) or ("optimize" in low) or ("clean" in low and "laptop" in low):
+            # Full optimization if user wants to optimize or clean
+            if has_optimize or (has_clean and has_cool) or ("optimize" in low) or ("clean" in low and ("laptop" in low or "system" in low or "ai" in low)):
                 res = agent.optimize()
+                ai_opt = self.optimize_memory()
                 c = res["cache_clean"]
                 m = res["memory_flush"]
                 t = res["thermal_cool"]
@@ -328,10 +332,11 @@ class ZiskareAI:
                 thermal_rating = "Cool & Silent" if cpu < 50 and mem_pct < 80 else "Moderate Load"
 
                 obs = (
-                    f"Full Laptop Optimization Completed:\n"
-                    f"- Disk Freed: {c['freed_mb']} MB ({c['files_removed']} temporary files removed)\n"
+                    f"Full System & AI Engine Optimization Completed:\n"
+                    f"- Disk Freed: {c['freed_mb']} MB ({c['files_removed']} temporary files & stale caches removed)\n"
                     f"- RAM Flushed: {m['freed_mb']} MB recovered ({m['processes_optimized']} processes trimmed)\n"
-                    f"- Thermal Cooling: GPU VRAM released ({t['gpu_vram_freed_mb']} MB)\n\n"
+                    f"- Thermal Cooling: GPU VRAM released ({t['gpu_vram_freed_mb']} MB)\n"
+                    f"- AI Context & Memory: Cleaned context baggage, freed {ai_opt['gpu_vram_freed_mb']} MB VRAM ({ai_opt['current_history_turns']} active turns retained)\n\n"
                     f"Hardware Status:\n"
                     f"Thermal Rating: {thermal_rating}\n"
                     f"CPU Usage:      {cpu}%\n"
@@ -677,12 +682,17 @@ class ZiskareAI:
                 max_new_tokens=max_new_tokens,
                 do_sample=temperature > 0,
                 temperature=temperature if temperature > 0 else None,
-                top_p=0.9 if temperature > 0 else None
+                top_p=0.9 if temperature > 0 else None,
+                use_cache=True,
+                pad_token_id=self.tokenizer.eos_token_id
             )
         elapsed = time.perf_counter() - start
 
         gen_tokens = outputs[0][inputs["input_ids"].shape[-1]:]
         answer = self.tokenizer.decode(gen_tokens, skip_special_tokens=True).strip()
+
+        if "cuda" in str(self.device):
+            torch.cuda.empty_cache()
 
         if return_metrics:
             count = len(gen_tokens)
@@ -696,6 +706,47 @@ class ZiskareAI:
             }
 
         return answer
+
+    def _trim_history(self):
+        """
+        Maintains a lean, responsive context window by pruning old turns.
+        Keeps initial system prompt intact plus the most recent N turns.
+        Prevents memory leaks, token bloat, and quadratic attention slowdown.
+        """
+        max_messages = self.max_history_turns * 2 + 1
+        if len(self.history) > max_messages:
+            self.history = [self.history[0]] + self.history[-(self.max_history_turns * 2):]
+
+    def optimize_memory(self) -> Dict[str, Any]:
+        """
+        Purges unused memory, trims conversation baggage, flushes CUDA allocator blocks,
+        and triggers Windows working set compaction.
+        """
+        import gc
+        gc.collect()
+        gpu_freed_mb = 0.0
+        if torch.cuda.is_available():
+            before_reserved = torch.cuda.memory_reserved(0)
+            torch.cuda.empty_cache()
+            torch.cuda.ipc_collect()
+            after_reserved = torch.cuda.memory_reserved(0)
+            gpu_freed_mb = round(max(0, before_reserved - after_reserved) / (1024 * 1024), 2)
+
+        self._trim_history()
+
+        try:
+            from ziskare_ai.agents.tools import flush_system_memory
+            sys_mem = flush_system_memory()
+            ram_freed = sys_mem.get("freed_mb", 0.0)
+        except Exception:
+            ram_freed = 0.0
+
+        return {
+            "status": "optimized",
+            "gpu_vram_freed_mb": gpu_freed_mb,
+            "ram_freed_mb": ram_freed,
+            "current_history_turns": max(0, (len(self.history) - 1) // 2)
+        }
 
     def chat(
         self,
@@ -712,6 +763,7 @@ class ZiskareAI:
         """
         # Autonomous Agent Dispatch Loop
         dispatched_agent = None
+        gen_messages = None
         if self.enable_agents:
             dispatch = self.dispatch_agent(user_message)
             if dispatch is not None:
@@ -720,6 +772,7 @@ class ZiskareAI:
                 if is_complete or raw_agent_output:
                     self.history.append({"role": "user", "content": user_message})
                     self.history.append({"role": "assistant", "content": agent_out})
+                    self._trim_history()
                     return agent_out, {"time_taken": 0.0, "tokens": len(agent_out.split()), "speed": 0.0, "agent": agent_name}
                 else:
                     synth_input = (
@@ -729,13 +782,14 @@ class ZiskareAI:
                         f"synthesize a direct, helpful confirmation response to the user. "
                         f"State the actions performed clearly and present the exact hardware status or metrics."
                     )
-                    self.history.append({"role": "user", "content": synth_input})
+                    gen_messages = list(self.history) + [{"role": "user", "content": synth_input}]
 
-        if dispatch is None:
+        if gen_messages is None:
             self.history.append({"role": "user", "content": user_message})
+            gen_messages = self.history
 
         inputs = self.tokenizer.apply_chat_template(
-            self.history,
+            gen_messages,
             add_generation_prompt=True,
             tokenize=True,
             return_dict=True,
@@ -749,14 +803,23 @@ class ZiskareAI:
                 max_new_tokens=max_new_tokens,
                 do_sample=temperature > 0,
                 temperature=temperature if temperature > 0 else None,
-                top_p=0.9 if temperature > 0 else None
+                top_p=0.9 if temperature > 0 else None,
+                use_cache=True,
+                pad_token_id=self.tokenizer.eos_token_id
             )
         elapsed = time.perf_counter() - start
 
         gen_tokens = outputs[0][inputs["input_ids"].shape[-1]:]
         answer = self.tokenizer.decode(gen_tokens, skip_special_tokens=True).strip()
 
+        # In persistent multi-turn history, record the clean prompt, not scratchpad instructions
+        if gen_messages is not self.history:
+            self.history.append({"role": "user", "content": user_message})
         self.history.append({"role": "assistant", "content": answer})
+        self._trim_history()
+
+        if "cuda" in str(self.device):
+            torch.cuda.empty_cache()
 
         count = len(gen_tokens)
         speed = count / elapsed if elapsed > 0 else 0

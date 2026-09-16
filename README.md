@@ -132,10 +132,10 @@ ai.get_agent("system").diagnose()
 
 ## 🤖 Autonomous AI Agents
 
-Ziskare AI includes a modular offline agents framework in [`agents/`](agents):
+Ziskare AI includes a modular offline agents framework in [`ziskare_ai/agents/`](ziskare_ai/agents):
 
 ```python
-from agents import CodeAgent, SystemAgent, TaskAgent, AgentOrchestrator
+from ziskare_ai.agents import CodeAgent, SystemAgent, TaskAgent, AgentOrchestrator
 
 # 1. Code Specialist
 coder = CodeAgent()
