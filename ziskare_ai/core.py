@@ -334,26 +334,25 @@ class ZiskareAI:
         )
         if has_open_image:
             from ziskare_ai.agents.tools import get_latest_image, render_terminal_image
-            # Check if user explicitly asked for external explorer or photo viewer
-            explicit_direct = any(w in low for w in ["in explorer", "in photos", "directly in app"]) and not ("do not open" in low or "don't open" in low or "in the terminal" in low or "in terminal" in low)
-            if explicit_direct:
-                agent = self.get_agent("desktop")
-                res = agent.open("latest image")
-                return ("DesktopAgent", res, False)
+            in_terminal_only = ("in terminal" in low or "in the terminal" in low) and not ("not in terminal" in low or "don't open in terminal" in low)
+            if in_terminal_only:
+                latest = get_latest_image()
+                if latest and latest.exists():
+                    preview = render_terminal_image(str(latest))
+                    print("\n" + preview + "\n", flush=True)
+                    obs = (
+                        f"Opened generated image in the terminal:\n"
+                        f"- File: {latest}\n"
+                        f"- High-clarity 24-bit terminal render displayed above."
+                    )
+                    return ("ImageAgent", obs, False)
+                else:
+                    return ("ImageAgent", "No recently generated image found to display in terminal.", False)
 
-            # Open / render the image directly in the terminal
-            latest = get_latest_image()
-            if latest and latest.exists():
-                preview = render_terminal_image(str(latest))
-                print("\n" + preview + "\n", flush=True)
-                obs = (
-                    f"Opened generated image in the terminal:\n"
-                    f"- File: {latest}\n"
-                    f"- High-clarity 24-bit terminal render displayed above."
-                )
-                return ("ImageAgent", obs, False)
-            else:
-                return ("ImageAgent", "No recently generated image found to display in terminal.", False)
+            # Open image file in default Windows viewer application
+            agent = self.get_agent("desktop")
+            res = agent.open("latest image")
+            return ("DesktopAgent", res, False)
 
         # 5c. Inquiries about the recently generated image
         image_inquiry_triggers = [

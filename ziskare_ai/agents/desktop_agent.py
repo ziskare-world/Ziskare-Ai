@@ -79,20 +79,19 @@ class DesktopAgent(BaseAgent):
             "open image", "show image", "revent image", "revently generated",
             "recently generated", "open the recent image", "open recent", "open the recent"
         ]):
-            # Only open directly in external app if explicitly requested
-            explicit_direct = any(e in low for e in ["in explorer", "in photos", "directly", "external"]) and not ("do not open" in low or "don't open" in low or "in the terminal" in low or "in terminal" in low)
-            if explicit_direct:
-                return self.open("latest image")
+            in_terminal_only = ("in terminal" in low or "in the terminal" in low) and not ("not in terminal" in low or "don't open in terminal" in low)
+            if in_terminal_only:
+                from ziskare_ai.agents.tools import get_latest_image, render_terminal_image
+                latest = get_latest_image()
+                if latest and latest.exists():
+                    preview = render_terminal_image(str(latest))
+                    print("\n" + preview + "\n", flush=True)
+                    return f"Opened generated image in the terminal:\n- File: {latest}\n- High-clarity 24-bit terminal render displayed above."
+                else:
+                    return "No generated image found in output/images to open in terminal."
 
-            # Otherwise render and open the image directly in the terminal!
-            from ziskare_ai.agents.tools import get_latest_image, render_terminal_image
-            latest = get_latest_image()
-            if latest and latest.exists():
-                preview = render_terminal_image(str(latest))
-                print("\n" + preview + "\n", flush=True)
-                return f"Opened generated image in the terminal:\n- File: {latest}\n- High-clarity 24-bit terminal render displayed above."
-            else:
-                return "No generated image found in output/images to open in terminal."
+            # Open image file in default Windows photo viewer (not in terminal)
+            return self.open("latest image")
 
         # Check open folder / file
         if any(w in low for w in ["open folder", "open directory", "show in explorer", "open file", "open the file", "open the folder", "open images", "open output", "open downloads"]):

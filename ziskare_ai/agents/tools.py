@@ -679,6 +679,12 @@ def enhance_image_clarity(
     print(preview, flush=True)
     print(f"\033[1m📁 Enhanced Image Saved:\033[0m {out_file} ({sz_kb} KB)\n", flush=True)
 
+    # Open the image in default image viewer
+    try:
+        open_path(str(out_file))
+    except Exception:
+        pass
+
     return {
         "status": "success",
         "file_path": str(out_file),
