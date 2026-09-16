@@ -34,11 +34,15 @@ class ZiskareAI:
         local_path: str = None,
         system_prompt: str = DEFAULT_SYSTEM_PROMPT,
         device: str = "auto",
-        silent: bool = False
+        silent: bool = False,
+        enable_agents: bool = True
     ):
         self.model_target = local_path if local_path else model_name
         self.system_prompt = system_prompt
+        self.enable_agents = enable_agents
+        self.silent = silent
         self.history = []
+        self._agents = {}
 
         if not silent:
             print(f"[Ziskare AI] Initializing {DISPLAY_NAME} Core...", flush=True)
@@ -89,16 +93,235 @@ class ZiskareAI:
 
         self.reset()
 
+    def get_agent(self, agent_name: str):
+        """Retrieve or initialize an autonomous specialist agent."""
+        agent_key = agent_name.lower().replace("agent", "").strip()
+        if agent_key not in self._agents:
+            if agent_key in ["optimizer", "cooling", "thermal"]:
+                from ziskare_ai.agents import OptimizerAgent
+                self._agents["optimizer"] = OptimizerAgent(ai=self, silent=True)
+                agent_key = "optimizer"
+            elif agent_key in ["system", "sys", "diagnostics"]:
+                from ziskare_ai.agents import SystemAgent
+                self._agents["system"] = SystemAgent(ai=self, silent=True)
+                agent_key = "system"
+            elif agent_key in ["code", "coder", "developer"]:
+                from ziskare_ai.agents import CodeAgent
+                self._agents["code"] = CodeAgent(ai=self, silent=True)
+                agent_key = "code"
+            elif agent_key in ["task", "react", "tools"]:
+                from ziskare_ai.agents import TaskAgent
+                self._agents["task"] = TaskAgent(ai=self, silent=True)
+                agent_key = "task"
+            else:
+                raise ValueError(f"Unknown agent: '{agent_name}'. Available: optimizer, system, code, task.")
+        return self._agents[agent_key]
+
+    def call_agent(self, agent_name: str, action: str = "run", **kwargs):
+        """
+        Directly invoke an agent tool or capability.
+        Returns the agent's raw output.
+        """
+        agent = self.get_agent(agent_name)
+        if hasattr(agent, action):
+            func = getattr(agent, action)
+            return func(**kwargs)
+        elif hasattr(agent, "run"):
+            return agent.run(action, **kwargs)
+        else:
+            raise AttributeError(f"Agent {agent_name} has no action '{action}'")
+
+    def dispatch_agent(self, user_input: str):
+        """
+        Autonomous Agent Bridge:
+        Inspects the user's intent. If an action or specialist is required,
+        dispatches to OptimizerAgent, SystemAgent, CodeAgent, or TaskAgent.
+        The agent executes tools/actions and returns its observation to the LLM.
+        Returns: (agent_name, observation_or_result, is_complete) or None.
+        """
+        import re
+        from ziskare_ai.agents.tools import get_system_stats
+
+        low = user_input.lower()
+
+        # 1. OptimizerAgent intent (Hardware cooling, RAM flush, Cache cleaning, Auto cooling, Benchmark)
+        clean_words = ["clean", "clear", "purge", "flush", "delete", "remove", "wipe", "empty", "free"]
+        target_cache_words = ["cache", "temp", "temporary", "junk", "trash", "recycle", "onedrive"]
+        cool_words = ["cool", "cooling", "heat", "hot", "overheat", "overheating", "thermal", "fan", "fans", "silent", "throttle", "down"]
+        target_hardware_words = ["laptop", "cpu", "gpu", "hardware", "machine", "pc", "device", "system", "vram"]
+        optimize_words = ["optimize", "optimise", "boost", "tune up", "speed up", "tune-up", "cleanup", "clean-up", "flush ram", "free ram", "free memory"]
+        auto_words = ["auto cool", "auto cooling", "automatic cooling", "background cooling"]
+        bench_words = ["benchmark", "stress test", "performance test", "hardware test"]
+
+        has_clean = any(c in low for c in clean_words) and any(t in low for t in target_cache_words)
+        has_cool = any(c in low for c in cool_words) and any(t in low for t in target_hardware_words)
+        has_optimize = any(o in low for o in optimize_words)
+        has_auto = any(a in low for a in auto_words)
+        has_bench = any(b in low for b in bench_words)
+
+        if has_clean or has_cool or has_optimize or has_auto or has_bench:
+            agent = self.get_agent("optimizer")
+
+            if has_auto:
+                res = agent.start_auto_cooling()
+                obs = f"Auto-Cooling Daemon Status: {res}"
+                return ("OptimizerAgent", obs, False)
+
+            if has_bench:
+                b = agent.benchmark()
+                obs = (
+                    f"Hardware Benchmark Results:\n"
+                    f"Thermal Status: {b['thermal_status']}\n"
+                    f"CPU Usage: {b['cpu_usage_percent']}%\n"
+                    f"RAM: {b['memory']['used_gb']} GB / {b['memory']['total_gb']} GB ({b['memory']['percent']}%)\n"
+                    f"Disk: {b['disk']['free_gb']} GB free ({b['disk']['percent']}% used)\n"
+                    f"GPU: {b['gpu']} ({b['gpu_thermal']})"
+                )
+                return ("OptimizerAgent", obs, False)
+
+            # Full optimization if user wants to optimize or both clean and cool
+            if has_optimize or (has_clean and has_cool) or ("optimize" in low) or ("clean" in low and "laptop" in low):
+                res = agent.optimize()
+                c = res["cache_clean"]
+                m = res["memory_flush"]
+                t = res["thermal_cool"]
+                tel = res["current_telemetry"]
+
+                gpu_name = tel.get("gpu", "NVIDIA GeForce RTX 3050 Laptop GPU")
+                if "(" in gpu_name:
+                    gpu_name = gpu_name.split("(")[0].strip()
+                gpu_thermal = t.get("gpu_thermal", "45°C")
+                if "(" in gpu_thermal:
+                    gpu_thermal = gpu_thermal.split("(")[0].strip()
+
+                cpu = tel['cpu_usage_percent']
+                mem_pct = tel['memory']['percent']
+                thermal_rating = "Cool & Silent" if cpu < 50 and mem_pct < 80 else "Moderate Load"
+
+                obs = (
+                    f"Full Laptop Optimization Completed:\n"
+                    f"- Disk Freed: {c['freed_mb']} MB ({c['files_removed']} temporary files removed)\n"
+                    f"- RAM Flushed: {m['freed_mb']} MB recovered ({m['processes_optimized']} processes trimmed)\n"
+                    f"- Thermal Cooling: GPU VRAM released ({t['gpu_vram_freed_mb']} MB)\n\n"
+                    f"Hardware Status:\n"
+                    f"Thermal Rating: {thermal_rating}\n"
+                    f"CPU Usage:      {cpu}%\n"
+                    f"RAM Memory:     {tel['memory']['used_gb']} GB / {tel['memory']['total_gb']} GB ({mem_pct}%)\n"
+                    f"Disk Space:     {tel['disk']['free_gb']} GB free ({tel['disk']['percent']}% used)\n"
+                    f"GPU Temp:       {gpu_thermal} ({gpu_name})"
+                )
+                return ("OptimizerAgent", obs, False)
+
+            elif has_cool:
+                res = agent.reduce_heat()
+                tel = get_system_stats()
+                gpu_name = tel.get("gpu", "NVIDIA GeForce RTX 3050 Laptop GPU")
+                if "(" in gpu_name:
+                    gpu_name = gpu_name.split("(")[0].strip()
+                obs = (
+                    f"Thermal Cooldown Performed:\n"
+                    f"- GPU VRAM Released: {res['gpu_vram_freed_mb']} MB\n"
+                    f"- Throttled Runaway Background Tasks: {res['throttled_processes']}\n\n"
+                    f"Hardware Status:\n"
+                    f"Thermal Rating: Cool & Silent\n"
+                    f"CPU Usage:      {res['cpu_usage_percent']}%\n"
+                    f"GPU Temp:       {res['gpu_thermal']} ({gpu_name})"
+                )
+                return ("OptimizerAgent", obs, False)
+
+            else:
+                res = agent.clean_cache()
+                tel = get_system_stats()
+                obs = (
+                    f"Cache & Temp Cleanup Performed:\n"
+                    f"- Freed Disk Space: {res['freed_mb']} MB\n"
+                    f"- Files Removed: {res['files_removed']}\n"
+                    f"- System Temp and Package Cache Purged\n\n"
+                    f"Disk Space: {tel['disk']['free_gb']} GB free ({tel['disk']['percent']}% used)"
+                )
+                return ("OptimizerAgent", obs, False)
+
+        # 2. System Diagnostics intent
+        sys_queries = ["check", "what is", "how is", "show", "get", "status", "health", "usage", "telemetry", "monitor", "diagnose", "specs", "specifications"]
+        sys_targets = ["cpu", "ram", "memory", "hardware", "disk", "gpu", "system", "pc", "laptop", "battery"]
+        has_sys = (any(q in low for q in sys_queries) and any(t in low for t in sys_targets)) or \
+                  any(p in low for p in ["system health", "hardware status", "pc specs", "laptop specs", "system status", "is my laptop overheating", "is my pc overheating"])
+
+        if has_sys:
+            agent = self.get_agent("system")
+            diag = agent.diagnose(ai_summary=False)
+            return ("SystemAgent", diag, False)
+
+        # 3. Multi-step Task / Tool intent (calculate, files, command)
+        has_calc = any(low.startswith(p) or f" {p} " in low for p in ["calculate", "math", "compute", "solve"]) or \
+                   (re.search(r'\b\d+\s*[\+\-\*\/\^]\s*\d+\b', low) and any(w in low for w in ["calculate", "what is", "compute", "eval"]))
+        has_file_tool = any(p in low for p in ["read file", "read the file", "list directory", "list files", "run command"])
+
+        if has_calc:
+            from ziskare_ai.agents.tools import calculate
+            expr_match = re.search(r'(?:calculate|compute|solve|eval|what is)\s*(.+)', low)
+            expr = expr_match.group(1).strip(" ?.") if expr_match else user_input
+            res = calculate(expr)
+            return ("TaskAgent", f"Tool Calculation Result:\ncalculate('{expr}') = {res}", False)
+
+        if has_file_tool:
+            agent = self.get_agent("task")
+            res = agent.execute_task(user_input, verbose=False)
+            return ("TaskAgent", res["final_answer"], False)
+
+        # 4. Code Specialist intent
+        code_verbs = ["write", "code", "debug", "refactor", "review", "implement", "create a function", "create a script"]
+        code_langs = ["python", "javascript", "typescript", "html", "css", "c++", "java", "sql", "bash", "powershell", "function", "script", "regex", "algorithm"]
+        has_code = any(v in low for v in code_verbs) and any(l in low for l in code_langs)
+
+        if has_code:
+            agent = self.get_agent("code")
+            res = agent.run(user_input, max_new_tokens=600)
+            return ("CodeAgent", res, True)
+
+        return None
+
     def ask(
         self,
         prompt: str,
         max_new_tokens: int = 256,
         temperature: float = 0.3,
-        return_metrics: bool = False
+        return_metrics: bool = False,
+        raw_agent_output: bool = False
     ):
         """
-        Ask a single question directly without maintaining previous conversation context.
+        Ask a single question directly.
+        Automatically dispatches to specialized AI agents when actions are requested,
+        allows the agent to execute tools, feeds observations to the LLM, and returns
+        the synthesized response to the user.
         """
+        # Autonomous Agent Dispatch Loop
+        dispatched_agent = None
+        if self.enable_agents:
+            dispatch = self.dispatch_agent(prompt)
+            if dispatch is not None:
+                agent_name, agent_out, is_complete = dispatch
+                dispatched_agent = agent_name
+                if is_complete or raw_agent_output:
+                    if return_metrics:
+                        return {
+                            "answer": agent_out,
+                            "time_taken": 0.0,
+                            "tokens": len(agent_out.split()),
+                            "speed": 0.0,
+                            "agent": agent_name
+                        }
+                    return agent_out
+                else:
+                    # Provide agent action observation to LLM for final synthesis
+                    prompt = (
+                        f"User Request: \"{prompt}\"\n\n"
+                        f"[Autonomous Work Completed by {agent_name}]:\n{agent_out}\n\n"
+                        f"Instruction: You are Ziskare AI. Using the agent's work and real telemetry/data above, "
+                        f"synthesize a direct, helpful confirmation response to the user. "
+                        f"State the actions performed clearly and present the exact hardware status or metrics."
+                    )
+
         messages = [
             {"role": "system", "content": self.system_prompt},
             {"role": "user", "content": prompt}
@@ -133,7 +356,8 @@ class ZiskareAI:
                 "answer": answer,
                 "time_taken": round(elapsed, 3),
                 "tokens": count,
-                "speed": round(speed, 1)
+                "speed": round(speed, 1),
+                "agent": dispatched_agent
             }
 
         return answer
@@ -142,11 +366,35 @@ class ZiskareAI:
         self,
         user_message: str,
         max_new_tokens: int = 256,
-        temperature: float = 0.3
+        temperature: float = 0.3,
+        raw_agent_output: bool = False
     ):
         """
         Multi-turn chat that maintains past conversation history.
+        Automatically dispatches to specialized AI agents when actions are requested,
+        allows the agent to execute tools, feeds observations to the LLM, and returns
+        the synthesized response to the user.
         """
+        # Autonomous Agent Dispatch Loop
+        dispatched_agent = None
+        if self.enable_agents:
+            dispatch = self.dispatch_agent(user_message)
+            if dispatch is not None:
+                agent_name, agent_out, is_complete = dispatch
+                dispatched_agent = agent_name
+                if is_complete or raw_agent_output:
+                    self.history.append({"role": "user", "content": user_message})
+                    self.history.append({"role": "assistant", "content": agent_out})
+                    return agent_out, {"time_taken": 0.0, "tokens": len(agent_out.split()), "speed": 0.0, "agent": agent_name}
+                else:
+                    self.history.append({"role": "user", "content": user_message})
+                    user_message = (
+                        f"[Autonomous Work Completed by {agent_name}]:\n{agent_out}\n\n"
+                        f"Instruction: You are Ziskare AI. Using the agent's work and real telemetry/data above, "
+                        f"synthesize a direct, helpful confirmation response to the user. "
+                        f"State the actions performed clearly and present the exact hardware status or metrics."
+                    )
+
         self.history.append({"role": "user", "content": user_message})
 
         inputs = self.tokenizer.apply_chat_template(

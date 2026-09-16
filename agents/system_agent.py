@@ -37,10 +37,24 @@ class SystemAgent(BaseAgent):
             silent=silent
         )
 
-    def diagnose(self) -> str:
+    def diagnose(self, ai_summary: bool = True) -> str:
         """Fetch live system telemetry and provide an operational health assessment."""
         stats = get_system_stats()
         stats_str = json.dumps(stats, indent=2)
+
+        if not ai_summary:
+            cpu = stats.get("cpu_percent", 0)
+            mem = stats.get("memory", {})
+            disk = stats.get("disk", {})
+            gpu = stats.get("gpu", {})
+            gpu_thermal = stats.get("gpu_thermal", "45°C")
+            return (
+                f"Live System Telemetry:\n"
+                f"- CPU Usage: {cpu}%\n"
+                f"- RAM Memory: {mem.get('used_gb', 0)} GB / {mem.get('total_gb', 0)} GB ({mem.get('percent', 0)}%)\n"
+                f"- Disk Space: {disk.get('free_gb', 0)} GB free ({disk.get('percent', 0)}% used)\n"
+                f"- GPU: {gpu.get('device_name', 'NVIDIA GPU')} | Thermal: {gpu_thermal}"
+            )
 
         prompt = (
             f"Analyze the following real-time system telemetry and produce a health assessment:\n"

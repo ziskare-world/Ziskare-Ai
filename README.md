@@ -98,6 +98,38 @@ ai.reset()
 
 ---
 
+## 🔄 Autonomous LLM-to-Agent Bridge
+
+You can directly give natural language prompts to the LLM. The LLM autonomously inspects your intent, calls the appropriate specialized AI agent, the agent works and performs real actions or tool executions, returns its observations to the LLM, and the LLM synthesizes and returns the final answer back to you:
+
+```powershell
+# Directly prompt the LLM from any terminal - it calls OptimizerAgent, cools hardware, and synthesizes status:
+ziskare-ai "Clean my laptop cache and cool down the CPU"
+
+# Check live diagnostics - LLM calls SystemAgent, analyzes hardware telemetry, and answers:
+ziskare-ai "What is my current system hardware status and RAM?"
+
+# Execute math / tools - LLM calls TaskAgent and returns results:
+ziskare-ai "Calculate 125 * 8 + 50"
+```
+
+In Python:
+```python
+from ziskare_ai import ZiskareAI
+
+ai = ZiskareAI()
+
+# 1. Prompt LLM directly -> LLM calls agent -> agent works -> LLM synthesizes & returns:
+response = ai.ask("Clean my laptop cache and optimize the laptop")
+print(response)
+
+# 2. Or access any agent directly on the LLM instance:
+ai.call_agent("optimizer", "optimize")
+ai.get_agent("system").diagnose()
+```
+
+---
+
 ## 🤖 Autonomous AI Agents
 
 Ziskare AI includes a modular offline agents framework in [`agents/`](agents):
