@@ -747,6 +747,15 @@ def find_files(query: str, search_dir: Optional[str] = None, max_results: int = 
     return "\n".join(f"- {m}" for m in matches)
 
 
+def enhance_prompt(prompt: str, mode: str = "auto", style: str = "photorealistic") -> Dict[str, Any]:
+    """
+    Optimize and expand a raw prompt into a rich, production-grade visual or LLM instruction.
+    """
+    from ziskare_ai.enhancer import PromptEnhancer
+    enhancer = PromptEnhancer()
+    return enhancer.enhance(prompt, mode=mode, style=style)
+
+
 AVAILABLE_TOOLS = {
     "read_file": read_file,
     "write_file": write_file,
@@ -765,5 +774,6 @@ AVAILABLE_TOOLS = {
     "cool_hardware_thermal": cool_hardware_thermal,
     "benchmark_laptop": benchmark_laptop,
     "calculate": calculate,
-    "run_command": run_command
+    "run_command": run_command,
+    "enhance_prompt": enhance_prompt
 }

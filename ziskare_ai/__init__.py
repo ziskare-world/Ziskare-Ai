@@ -30,6 +30,9 @@ def __getattr__(name: str):
     if name == "ZiskareAI":
         from ziskare_ai.core import ZiskareAI
         return ZiskareAI
+    elif name in ["PromptEnhancer", "enhance_prompt"]:
+        import ziskare_ai.enhancer as _enhancer_mod
+        return getattr(_enhancer_mod, name)
     elif name in ["CodeAgent", "SystemAgent", "TaskAgent", "OptimizerAgent", "ImageAgent", "DesktopAgent", "AgentOrchestrator", "BaseAgent"]:
         import ziskare_ai.agents as _agents_mod
         return getattr(_agents_mod, name)
@@ -53,5 +56,7 @@ __all__ = [
     "DesktopAgent",
     "AgentOrchestrator",
     "BaseAgent",
+    "PromptEnhancer",
+    "enhance_prompt",
     "__version__"
 ]

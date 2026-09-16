@@ -59,22 +59,14 @@ class ImageAgent(BaseAgent):
 
     def enhance_prompt(self, user_prompt: str, style: str = "photorealistic") -> str:
         """
-        Uses the Ziskare LLM to optimize and expand a user prompt into a high-detail generative prompt.
+        Uses the Ziskare PromptEnhancer to optimize and expand a user prompt into a high-detail generative prompt.
         """
-        task = (
-            f"Transform the following image idea into a detailed, high-quality prompt for an image generator:\n"
-            f"User Idea: \"{user_prompt}\"\n"
-            f"Desired Style: {style}\n\n"
-            f"Output ONLY the enhanced prompt string without explanations, quotes, or conversational preamble."
-        )
         try:
-            enhanced = self.run(task, max_new_tokens=150).strip().strip('"\'')
-            # Clean any model preamble
-            if ":" in enhanced and len(enhanced.split(":")[0]) < 30:
-                enhanced = enhanced.split(":", 1)[1].strip()
-            return enhanced if enhanced else user_prompt
+            from ziskare_ai.enhancer import PromptEnhancer
+            enhancer = PromptEnhancer(ai=self.ai)
+            res = enhancer.enhance_image_prompt(user_prompt, style=style, use_llm=True)
+            return res.get("enhanced_prompt", user_prompt)
         except Exception:
-            # Fallback prompt enrichment
             return f"{user_prompt}, highly detailed, {style}, sharp focus, 8k resolution, cinematic lighting"
 
     def enhance_clarity(self, image_path: Optional[str] = None) -> Dict[str, Any]:

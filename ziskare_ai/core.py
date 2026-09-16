@@ -398,6 +398,48 @@ class ZiskareAI:
             res = agent.execute_task(user_input, verbose=False)
             return ("TaskAgent", res["final_answer"], False)
 
+        # 3b. Prompt Enhancer intent
+        enhancer_triggers = [
+            "enhance prompt", "enhance the prompt", "enhance this prompt", "prompt enhancer",
+            "prompt enhance", "improve prompt", "improve the prompt", "optimize prompt",
+            "optimize the prompt", "make a prompt", "create a prompt", "expand prompt",
+            "better prompt", "prompt engineering", "write a prompt", "craft a prompt",
+            "create a prompt enhancer", "build a prompt enhancer"
+        ]
+        has_enhancer = any(t in low for t in enhancer_triggers) or (
+            ("enhance" in low or "improve" in low or "optimize" in low or "expand" in low) and
+            ("prompt" in low or "prompts" in low)
+        )
+        if has_enhancer:
+            from ziskare_ai.enhancer import PromptEnhancer
+            enhancer = PromptEnhancer(ai=self)
+            clean_idea = re.sub(
+                r'^(?:please\s+)?(?:can\s+you\s+)?(?:enhance|improve|optimize|expand|make|create|write|craft|build)\s+(?:the\s+|this\s+|a\s+)?(?:prompt|prompts|prompt\s+enhancer)?(?:\s+for|\s+of|\s+about)?\s*',
+                '', user_input, flags=re.IGNORECASE
+            ).strip(" :.-\"'")
+
+            if not clean_idea or clean_idea.lower() in ["prompt enhancer", "a prompt enhancer", "the prompt enhancer", "enhancer"]:
+                overview = (
+                    "🎨 **Ziskare AI — Universal Prompt Enhancer Ready**\n\n"
+                    "The Prompt Enhancer is now active and ready to transform your ideas into production-grade prompts!\n\n"
+                    "### 🌟 Supported Modes:\n"
+                    "- **Visual / Image Synthesis:** Generates high-detail prompts with camera optics, atmospheric lighting, and engine negative prompts.\n"
+                    "- **Code Architecture:** Transforms coding tasks into robust specifications with typing, architecture patterns, and constraints.\n"
+                    "- **LLM / System Persona:** Crafts structured Chain-of-Thought instructions with personas, roles, and output schemas.\n\n"
+                    "### 🎭 Curated Artistic Styles:\n"
+                    "`photorealistic`, `cinematic`, `cyberpunk`, `anime`, `fantasy`, `unreal_engine`, `oil_painting`, `dark_moody`, `isometric_3d`, `macro`, `watercolor`, `minimalist`\n\n"
+                    "### 💡 How to Use:\n"
+                    "- *\"enhance prompt: a cybernetic tiger in a digital jungle\"*\n"
+                    "- *\"enhance prompt in anime style: a cozy coffee shop in rainy Tokyo\"*\n"
+                    "- *\"enhance code prompt: python script to parse log files\"*\n"
+                    "- *\"enhance this prompt for cinematic: astronaut on Mars\"*"
+                )
+                return ("PromptEnhancer", overview, True)
+
+            res = enhancer.enhance(clean_idea)
+            formatted = enhancer.format_display(res)
+            return ("PromptEnhancer", formatted, True)
+
         # 4. Code Specialist intent
         code_verbs = ["write", "code", "debug", "refactor", "review", "implement", "create a function", "create a script"]
         code_langs = ["python", "javascript", "typescript", "html", "css", "c++", "java", "sql", "bash", "powershell", "function", "script", "regex", "algorithm", "opencv", "pillow", "cv2", "code", "program"]
