@@ -113,8 +113,12 @@ class ZiskareAI:
                 from ziskare_ai.agents import TaskAgent
                 self._agents["task"] = TaskAgent(ai=self, silent=True)
                 agent_key = "task"
+            elif agent_key in ["image", "img", "art", "picture", "draw"]:
+                from ziskare_ai.agents import ImageAgent
+                self._agents["image"] = ImageAgent(ai=self, silent=True)
+                agent_key = "image"
             else:
-                raise ValueError(f"Unknown agent: '{agent_name}'. Available: optimizer, system, code, task.")
+                raise ValueError(f"Unknown agent: '{agent_name}'. Available: optimizer, system, code, task, image.")
         return self._agents[agent_key]
 
     def call_agent(self, agent_name: str, action: str = "run", **kwargs):
@@ -278,6 +282,36 @@ class ZiskareAI:
             agent = self.get_agent("code")
             res = agent.run(user_input, max_new_tokens=600)
             return ("CodeAgent", res, True)
+
+        # 5. Image Generation Specialist intent
+        image_triggers = [
+            "generate an image", "generate image", "create an image", "create image",
+            "draw an image", "draw image", "make an image", "make image",
+            "generate a picture", "generate picture", "draw a picture", "paint an image", "render an image"
+        ]
+        has_image = any(t in low for t in image_triggers) or (
+            ("generate" in low or "create" in low or "draw" in low or "make" in low or "render" in low) and
+            ("image" in low or "picture" in low or "wallpaper" in low or "artwork" in low or "photo" in low)
+        )
+
+        if has_image:
+            agent = self.get_agent("image")
+            clean_prompt = re.sub(
+                r'^(?:please\s+)?(?:generate|create|draw|make|render|paint)\s+(?:an?\s+)?(?:image|picture|wallpaper|artwork|photo)\s+(?:of|for|about|with)?\s*',
+                '', user_input, flags=re.IGNORECASE
+            ).strip(" :.-")
+            if not clean_prompt:
+                clean_prompt = user_input
+            res = agent.generate(clean_prompt)
+            obs = (
+                f"Image Generation Complete:\n"
+                f"- File Saved: {res['file_path']}\n"
+                f"- Resolution: {res['dimensions']}\n"
+                f"- File Size: {res['size_kb']} KB\n"
+                f"- Synthesis Engine: {res['backend']}\n"
+                f"- Visual Prompt: {res['enhanced_prompt']}"
+            )
+            return ("ImageAgent", obs, False)
 
         return None
 

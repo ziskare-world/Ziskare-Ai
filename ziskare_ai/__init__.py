@@ -30,7 +30,7 @@ def __getattr__(name: str):
     if name == "ZiskareAI":
         from ziskare_ai.core import ZiskareAI
         return ZiskareAI
-    elif name in ["CodeAgent", "SystemAgent", "TaskAgent", "OptimizerAgent", "AgentOrchestrator", "BaseAgent"]:
+    elif name in ["CodeAgent", "SystemAgent", "TaskAgent", "OptimizerAgent", "ImageAgent", "AgentOrchestrator", "BaseAgent"]:
         import ziskare_ai.agents as _agents_mod
         return getattr(_agents_mod, name)
     elif name == "agents":
@@ -49,6 +49,7 @@ __all__ = [
     "SystemAgent",
     "TaskAgent",
     "OptimizerAgent",
+    "ImageAgent",
     "AgentOrchestrator",
     "BaseAgent",
     "__version__"

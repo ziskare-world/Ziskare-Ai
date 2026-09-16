@@ -22,6 +22,7 @@ from ziskare_ai.agents.code_agent import CodeAgent
 from ziskare_ai.agents.system_agent import SystemAgent
 from ziskare_ai.agents.task_agent import TaskAgent
 from ziskare_ai.agents.optimizer_agent import OptimizerAgent
+from ziskare_ai.agents.image_agent import ImageAgent
 from ziskare_ai.agents.orchestrator import AgentOrchestrator
 
 _global_orchestrator = None
@@ -48,6 +49,7 @@ __all__ = [
     "SystemAgent",
     "TaskAgent",
     "OptimizerAgent",
+    "ImageAgent",
     "AgentOrchestrator",
     "AVAILABLE_TOOLS",
     "read_file",

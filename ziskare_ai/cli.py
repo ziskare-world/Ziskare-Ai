@@ -24,10 +24,25 @@ def main():
         print("\nZiskare AI CLI Usage:")
         print("  ziskare-ai 'your question here'                   Direct answer to stdout")
         print("  ziskare-ai                                       Interactive chat shell")
-        print("  ziskare-ai --agent [code|system|task|optimize]   Run specialized AI agent")
+        print("  ziskare-ai --agent [code|system|task|optimize|image] Run specialized AI agent")
+        print("  ziskare-ai --image 'your prompt here'             Generate AI artwork & images")
         print("  ziskare-ai --optimize [clean|cool|auto|bench]     Optimize laptop RAM, clean temp files & reduce heat")
         print("  ziskare-ai --server [port]                        Start local REST API server (default: 5005)")
         print("  ziskare-ai --help                                 Show this help message\n")
+        return
+
+    # Direct image shortcut
+    if "--image" in args:
+        idx = args.index("--image")
+        prompt = " ".join(args[idx + 1:]) if idx + 1 < len(args) else "futuristic cyberpunk city, 8k"
+        from ziskare_ai.agents import ImageAgent
+        img_agent = ImageAgent(silent=False)
+        res = img_agent.generate(prompt)
+        print(f"\n[Ziskare AI] Image successfully created:")
+        print(f"  File Path:   {res['file_path']}")
+        print(f"  Dimensions:  {res['dimensions']}")
+        print(f"  Size:        {res['size_kb']} KB")
+        print(f"  Engine:      {res['backend']}")
         return
 
     # Direct optimize shortcut (supports: ziskare-ai optimize, ziskare-ai --optimize, etc.)
@@ -50,7 +65,15 @@ def main():
         else:
             rem_args = args[idx + 1:]
 
-        from ziskare_ai.agents import AgentOrchestrator, CodeAgent, SystemAgent, TaskAgent, OptimizerAgent
+        from ziskare_ai.agents import AgentOrchestrator, CodeAgent, SystemAgent, TaskAgent, OptimizerAgent, ImageAgent
+
+        # Special Image Agent handling
+        if agent_type in ["image", "img", "art", "picture"]:
+            agent = ImageAgent(silent=False)
+            prompt = " ".join(rem_args) if rem_args else "futuristic cyberpunk city, 8k"
+            res = agent.generate(prompt)
+            print(f"\n[Ziskare AI] Image created: {res['file_path']} ({res['size_kb']} KB)")
+            return
 
         # Special Optimizer handling (Can run zero-model instant mode or AI diagnostic mode)
         if agent_type in ["optimize", "optimizer", "cooling"]:

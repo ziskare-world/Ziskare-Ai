@@ -40,3 +40,6 @@ offload/
 .idea/
 .DS_Store
 Thumbs.db
+
+# Generated outputs
+output/
