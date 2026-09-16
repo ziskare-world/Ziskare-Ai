@@ -136,12 +136,25 @@ class ImageAgent(BaseAgent):
 
         file_size = out_file.stat().st_size if out_file.exists() else 0
 
-        if not self.silent:
+        # Render terminal visual preview and open image
+        terminal_preview = ""
+        try:
+            from ziskare_ai.agents.tools import render_terminal_image, open_path
+            terminal_preview = render_terminal_image(str(out_file), max_width=40)
+            print("\n" + terminal_preview + "\n", flush=True)
             print(f"[ImageAgent] Image generated successfully -> {out_file} ({file_size / 1024:.1f} KB)", flush=True)
+            try:
+                open_path(str(out_file))
+            except Exception:
+                pass
+        except Exception:
+            if not self.silent:
+                print(f"[ImageAgent] Image generated successfully -> {out_file} ({file_size / 1024:.1f} KB)", flush=True)
 
         return {
             "status": "success",
             "file_path": str(out_file),
+            "terminal_preview": terminal_preview,
             "prompt": prompt,
             "enhanced_prompt": enhanced_prompt,
             "backend": backend_used,

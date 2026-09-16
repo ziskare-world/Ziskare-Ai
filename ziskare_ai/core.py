@@ -117,8 +117,12 @@ class ZiskareAI:
                 from ziskare_ai.agents import ImageAgent
                 self._agents["image"] = ImageAgent(ai=self, silent=True)
                 agent_key = "image"
+            elif agent_key in ["desktop", "files", "folder", "laptop", "os"]:
+                from ziskare_ai.agents import DesktopAgent
+                self._agents["desktop"] = DesktopAgent(ai=self, silent=True)
+                agent_key = "desktop"
             else:
-                raise ValueError(f"Unknown agent: '{agent_name}'. Available: optimizer, system, code, task, image.")
+                raise ValueError(f"Unknown agent: '{agent_name}'. Available: optimizer, system, code, task, image, desktop.")
         return self._agents[agent_key]
 
     def call_agent(self, agent_name: str, action: str = "run", **kwargs):
@@ -313,6 +317,23 @@ class ZiskareAI:
             )
             return ("ImageAgent", obs, False)
 
+        # 6. Desktop & File/Folder Operations intent
+        desktop_triggers = [
+            "open folder", "open directory", "show in explorer", "open file",
+            "open the file", "open the folder", "open images", "open output",
+            "open downloads", "open desktop", "launch app", "start app", "open app",
+            "open notepad", "open calc", "open calculator", "open terminal",
+            "open vs code", "open vscode", "open paint", "find file", "search file"
+        ]
+        has_desktop = any(t in low for t in desktop_triggers) or (
+            low.startswith("open ") and any(k in low for k in ["folder", "file", "image", "output", "directory", "app", "window", "download", "document"])
+        )
+
+        if has_desktop:
+            agent = self.get_agent("desktop")
+            res = agent.execute_task(user_input)
+            return ("DesktopAgent", res, False)
+
         return None
 
     def ask(
@@ -421,15 +442,17 @@ class ZiskareAI:
                     self.history.append({"role": "assistant", "content": agent_out})
                     return agent_out, {"time_taken": 0.0, "tokens": len(agent_out.split()), "speed": 0.0, "agent": agent_name}
                 else:
-                    self.history.append({"role": "user", "content": user_message})
-                    user_message = (
+                    synth_input = (
+                        f"User Request: \"{user_message}\"\n\n"
                         f"[Autonomous Work Completed by {agent_name}]:\n{agent_out}\n\n"
                         f"Instruction: You are Ziskare AI. Using the agent's work and real telemetry/data above, "
                         f"synthesize a direct, helpful confirmation response to the user. "
                         f"State the actions performed clearly and present the exact hardware status or metrics."
                     )
+                    self.history.append({"role": "user", "content": synth_input})
 
-        self.history.append({"role": "user", "content": user_message})
+        if dispatch is None:
+            self.history.append({"role": "user", "content": user_message})
 
         inputs = self.tokenizer.apply_chat_template(
             self.history,

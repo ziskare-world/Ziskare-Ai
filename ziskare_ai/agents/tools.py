@@ -347,10 +347,148 @@ def run_command(command: str, timeout_sec: int = 15) -> str:
         return f"Execution error: {str(e)}"
 
 
+def open_path(target_path: str) -> str:
+    """
+    Opens any file or folder on the Windows laptop with its default associated application or File Explorer.
+    Supports shortcuts like 'output', 'images', 'downloads', 'desktop', 'documents', or any path.
+    """
+    target = target_path.strip().strip('"\'')
+    low = target.lower()
+
+    # Common folder aliases
+    if low in ["images", "output/images", "output images", "image folder", "images folder"]:
+        resolved = DEFAULT_WORKSPACE / "output" / "images"
+    elif low in ["output", "output folder"]:
+        resolved = DEFAULT_WORKSPACE / "output"
+    elif low in ["downloads", "download", "downloads folder"]:
+        resolved = Path.home() / "Downloads"
+    elif low in ["desktop", "desktop folder"]:
+        resolved = Path.home() / "Desktop"
+    elif low in ["documents", "documents folder", "docs"]:
+        resolved = Path.home() / "Documents"
+    elif low in ["workspace", "project", "repo"]:
+        resolved = DEFAULT_WORKSPACE
+    else:
+        p = Path(target)
+        if not p.is_absolute():
+            resolved = (DEFAULT_WORKSPACE / p).resolve()
+        else:
+            resolved = p.resolve()
+
+    if not resolved.exists():
+        # Create output/images if asked to open it and doesn't exist
+        if "output" in low or "images" in low:
+            resolved.mkdir(parents=True, exist_ok=True)
+        else:
+            return f"Error: Path '{resolved}' does not exist on this laptop."
+
+    try:
+        os.startfile(str(resolved))
+        kind = "folder in File Explorer" if resolved.is_dir() else "file in default application"
+        return f"Successfully opened {kind}: {resolved}"
+    except Exception as e:
+        return f"Error opening '{resolved}': {str(e)}"
+
+
+def launch_app(app_name: str) -> str:
+    """
+    Launch a Windows laptop desktop application (e.g., notepad, calculator, explorer, code, taskmgr).
+    """
+    name = app_name.strip().lower()
+    app_map = {
+        "notepad": "notepad.exe",
+        "calc": "calc.exe",
+        "calculator": "calc.exe",
+        "explorer": "explorer.exe",
+        "file explorer": "explorer.exe",
+        "code": "code",
+        "vs code": "code",
+        "vscode": "code",
+        "taskmgr": "taskmgr.exe",
+        "task manager": "taskmgr.exe",
+        "terminal": "wt.exe",
+        "windows terminal": "wt.exe",
+        "cmd": "cmd.exe",
+        "command prompt": "cmd.exe",
+        "powershell": "powershell.exe",
+        "paint": "mspaint.exe",
+        "mspaint": "mspaint.exe"
+    }
+    cmd = app_map.get(name, name)
+    try:
+        subprocess.Popen(f"start {cmd}", shell=True)
+        return f"Successfully launched application: {app_name}"
+    except Exception as e:
+        return f"Error launching '{app_name}': {str(e)}"
+
+
+def render_terminal_image(image_path: str, max_width: int = 36) -> str:
+    """
+    Renders an image directly into the terminal using 24-bit ANSI truecolor half-blocks.
+    """
+    import sys
+    if hasattr(sys.stdout, "reconfigure"):
+        try:
+            sys.stdout.reconfigure(encoding="utf-8")
+        except Exception:
+            pass
+
+    from PIL import Image
+    try:
+        p = Path(image_path)
+        if not p.is_absolute():
+            p = (DEFAULT_WORKSPACE / p).resolve()
+        if not p.exists():
+            return f"[Image file not found: {image_path}]"
+
+        img = Image.open(str(p)).convert("RGB")
+        aspect = img.height / img.width
+        height = max(1, int(max_width * aspect * 0.45))
+        img = img.resize((max_width, height * 2), Image.Resampling.BILINEAR)
+        pixels = img.load()
+
+        lines = []
+        for y in range(0, height * 2 - 1, 2):
+            line_parts = []
+            for x in range(max_width):
+                r_top, g_top, b_top = pixels[x, y]
+                r_bot, g_bot, b_bot = pixels[x, y + 1]
+                line_parts.append(f"\033[38;2;{r_top};{g_top};{b_top}m\033[48;2;{r_bot};{g_bot};{b_bot}m▀")
+            lines.append("".join(line_parts) + "\033[0m")
+
+        return "\n".join(lines)
+    except Exception as e:
+        return f"[Terminal preview unavailable: {str(e)}]"
+
+
+def find_files(query: str, search_dir: Optional[str] = None, max_results: int = 15) -> str:
+    """
+    Search for files or folders matching a query pattern.
+    """
+    root = Path(search_dir) if search_dir else DEFAULT_WORKSPACE
+    if not root.exists():
+        return f"Error: Search directory '{root}' does not exist."
+    matches = []
+    try:
+        for p in root.rglob(f"*{query}*"):
+            matches.append(str(p))
+            if len(matches) >= max_results:
+                break
+    except Exception:
+        pass
+    if not matches:
+        return f"No files found matching '{query}' in {root}"
+    return "\n".join(f"- {m}" for m in matches)
+
+
 AVAILABLE_TOOLS = {
     "read_file": read_file,
     "write_file": write_file,
     "list_dir": list_dir,
+    "open_path": open_path,
+    "launch_app": launch_app,
+    "find_files": find_files,
+    "render_terminal_image": render_terminal_image,
     "get_system_stats": get_system_stats,
     "clean_temp_files": clean_temp_files,
     "flush_system_memory": flush_system_memory,

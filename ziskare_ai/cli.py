@@ -23,12 +23,22 @@ def main():
     if "--help" in args or "-h" in args:
         print("\nZiskare AI CLI Usage:")
         print("  ziskare-ai 'your question here'                   Direct answer to stdout")
-        print("  ziskare-ai                                       Interactive chat shell")
-        print("  ziskare-ai --agent [code|system|task|optimize|image] Run specialized AI agent")
+        print("  ziskare-ai                                       Interactive multi-turn chat shell (remembers everything)")
+        print("  ziskare-ai --agent [code|system|task|optimize|image|desktop] Run specialized AI agent")
         print("  ziskare-ai --image 'your prompt here'             Generate AI artwork & images")
+        print("  ziskare-ai --open [file/folder/app]               Open file, folder, or launch app on laptop")
         print("  ziskare-ai --optimize [clean|cool|auto|bench]     Optimize laptop RAM, clean temp files & reduce heat")
         print("  ziskare-ai --server [port]                        Start local REST API server (default: 5005)")
         print("  ziskare-ai --help                                 Show this help message\n")
+        return
+
+    # Direct open shortcut
+    if "--open" in args:
+        idx = args.index("--open")
+        target = " ".join(args[idx + 1:]) if idx + 1 < len(args) else "output/images"
+        from ziskare_ai.agents import DesktopAgent
+        desk = DesktopAgent(silent=False)
+        print(f"[Ziskare AI Desktop] {desk.execute_task(f'open {target}')}")
         return
 
     # Direct image shortcut
@@ -65,7 +75,23 @@ def main():
         else:
             rem_args = args[idx + 1:]
 
-        from ziskare_ai.agents import AgentOrchestrator, CodeAgent, SystemAgent, TaskAgent, OptimizerAgent, ImageAgent
+        from ziskare_ai.agents import (
+            AgentOrchestrator,
+            CodeAgent,
+            SystemAgent,
+            TaskAgent,
+            OptimizerAgent,
+            ImageAgent,
+            DesktopAgent
+        )
+
+        # Special Desktop Agent handling
+        if agent_type in ["desktop", "files", "folder", "open"]:
+            agent = DesktopAgent(silent=False)
+            task = " ".join(rem_args) if rem_args else "open output/images"
+            res = agent.execute_task(task)
+            print(f"\n[Ziskare AI Desktop] {res}")
+            return
 
         # Special Image Agent handling
         if agent_type in ["image", "img", "art", "picture"]:

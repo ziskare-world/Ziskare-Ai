@@ -161,11 +161,17 @@ print(f"RAM Freed: {res['memory_flush']['freed_mb']} MB")
 # Or run silent background cooling daemon while you work
 optimizer.start_auto_cooling(interval_seconds=45)
 
-# 6. AI Image Synthesis & Generative Art Agent
+# 6. AI Image Synthesis & Generative Art Agent (renders in terminal & opens)
 from ziskare_ai import ImageAgent
 image_agent = ImageAgent()
 img_res = image_agent.generate("A majestic cybernetic tiger in a futuristic neon rainforest, 8k")
 print(f"Image saved: {img_res['file_path']}")
+
+# 7. Desktop & Laptop Operations Agent (opens files, folders, apps)
+from ziskare_ai import DesktopAgent
+desktop = DesktopAgent()
+desktop.open("output/images")          # Opens folder in File Explorer
+desktop.launch("notepad")              # Launches Windows apps
 ```
 
 Or from the command line:
@@ -175,6 +181,10 @@ ziskare-ai --agent code "Write a fast hash function"
 ziskare-ai --agent system "Check system status"
 ziskare-ai --agent task "Calculate 125 * 38"
 ziskare-ai --image "A glowing dragon over misty mountains, 8k"
+ziskare-ai --open output/images        # Open folder/file in Windows Explorer
+
+# Interactive Multi-Turn Shell (remembers all previous conversation & tasks):
+ziskare-ai
 
 # 1-Click Laptop Hardware & Thermal Optimization
 ziskare-ai --optimize                  # Full cleanup: RAM flush, cache purge, thermal cooldown

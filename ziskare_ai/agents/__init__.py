@@ -10,6 +10,10 @@ from ziskare_ai.agents.tools import (
     read_file,
     write_file,
     list_dir,
+    open_path,
+    launch_app,
+    find_files,
+    render_terminal_image,
     get_system_stats,
     clean_temp_files,
     flush_system_memory,
@@ -23,6 +27,7 @@ from ziskare_ai.agents.system_agent import SystemAgent
 from ziskare_ai.agents.task_agent import TaskAgent
 from ziskare_ai.agents.optimizer_agent import OptimizerAgent
 from ziskare_ai.agents.image_agent import ImageAgent
+from ziskare_ai.agents.desktop_agent import DesktopAgent
 from ziskare_ai.agents.orchestrator import AgentOrchestrator
 
 _global_orchestrator = None
@@ -50,11 +55,16 @@ __all__ = [
     "TaskAgent",
     "OptimizerAgent",
     "ImageAgent",
+    "DesktopAgent",
     "AgentOrchestrator",
     "AVAILABLE_TOOLS",
     "read_file",
     "write_file",
     "list_dir",
+    "open_path",
+    "launch_app",
+    "find_files",
+    "render_terminal_image",
     "get_system_stats",
     "clean_temp_files",
     "flush_system_memory",
