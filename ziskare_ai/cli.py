@@ -30,8 +30,11 @@ def main():
         print("  ziskare-ai --help                                 Show this help message\n")
         return
 
-    # Direct optimize shortcut
-    if "--optimize" in args:
+    # Direct optimize shortcut (supports: ziskare-ai optimize, ziskare-ai --optimize, etc.)
+    if args and args[0].lower() in ["optimize", "--optimize", "-optimize", "/optimize"]:
+        subcmd = args[1].lower() if len(args) > 1 and not args[1].startswith("-") else "all"
+        args = ["--agent", "optimize", subcmd]
+    elif "--optimize" in args:
         idx = args.index("--optimize")
         subcmd = args[idx + 1].lower() if idx + 1 < len(args) and not args[idx + 1].startswith("-") else "all"
         args = ["--agent", "optimize", subcmd]
@@ -105,11 +108,30 @@ def main():
                 t = res["thermal_cool"]
                 tel = res["current_telemetry"]
 
+                gpu_name = tel.get("gpu", "N/A")
+                gpu_thermal = tel.get("gpu_thermal", "N/A")
+                if "(" in gpu_name:
+                    gpu_name = gpu_name.split("(")[0].strip()
+
+                gpu_temp_str = gpu_thermal
+                if "(" in gpu_temp_str:
+                    gpu_temp_str = gpu_temp_str.split("(")[0].strip()
+
+                cpu = tel['cpu_usage_percent']
+                mem_pct = tel['memory']['percent']
+                thermal_rating = "Cool & Silent" if cpu < 45 and mem_pct < 75 else "Moderate Load" if cpu < 70 else "High Load"
+
                 print(f"[*] Cache Cleanup:  {c['freed_mb']} MB freed ({c['files_removed']} temp files cleaned)")
                 print(f"[*] Memory Flush:   {m['freed_mb']} MB RAM recovered ({m['processes_optimized']} processes trimmed)")
-                print(f"[*] Thermal Cooling: GPU VRAM released ({t['gpu_vram_freed_mb']} MB) | GPU: {t['gpu_thermal']}")
-                print(f"[*] Active Status:  CPU {tel['cpu_usage_percent']}% | RAM {tel['memory']['percent']}% | Disk Free: {tel['disk']['free_gb']} GB")
-                print("\n  Optimization complete. Laptop cooling active.")
+                print(f"[*] Thermal Cooling: GPU VRAM released ({t['gpu_vram_freed_mb']} MB)")
+                print("\n-------------------------------------------------------")
+                print(f"  Thermal Rating: {thermal_rating}")
+                print(f"  CPU Usage:      {cpu}%")
+                print(f"  RAM Memory:     {tel['memory']['used_gb']} GB / {tel['memory']['total_gb']} GB ({mem_pct}%)")
+                print(f"  Disk Space:     {tel['disk']['free_gb']} GB free ({tel['disk']['percent']}% used)")
+                print(f"  GPU Temp:       {gpu_temp_str} ({gpu_name})")
+                print("-------------------------------------------------------")
+                print("  Optimization complete. Laptop running cool & silent.")
                 return
 
         ai = get_default_ai(silent=True)
