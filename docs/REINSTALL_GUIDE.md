@@ -29,17 +29,16 @@ Before wiping your laptop, save these to an external USB Drive:
 
 ---
 
-### Step 2: Run the One-Click Recovery Script
-1. Plug in your USB drive and copy `Ziskare-space` back to your drive (e.g. `D:\Ziskare-space`).
-2. Open the [`tools/`](file:///d:/Ziskare-space/tools) folder:
-3. **Double-click [`setup_ziskare_ai.bat`](file:///d:/Ziskare-space/tools/setup_ziskare_ai.bat)** 
-   *(or in PowerShell run: `.\tools\setup_ziskare_ai.ps1`)*.
+### Step 2: Run the One-Click Installer
+1. Plug in your USB drive and copy the repository back to your drive (e.g. `D:\ziskare-ai`).
+2. **Double-click [`install.bat`](file:///d:/ziskare-ai/install.bat)**.
 
 The automated script will:
 * Check for Python & NVIDIA GPU.
 * Install CUDA-accelerated PyTorch (`cu126`), `transformers`, and `accelerate`.
-* Install the `ziskare_ai` package into your global Python `site-packages`.
+* Install the `ziskare_ai` package into your global Python environment.
 * Register the global Windows CLI command `ziskare-ai`.
+* Warm up and verify the model engine.
 
 ---
 
@@ -59,7 +58,7 @@ You should see:
 
 ## 🛠️ Phase 3: Manual Command Reference (Alternative)
 
-If you ever prefer to run the setup manually step-by-step in PowerShell:
+If you ever prefer to run the setup manually step-by-step:
 
 ```powershell
 # 1. Install PyTorch with CUDA acceleration for RTX 3050
@@ -68,8 +67,9 @@ pip install --pre torch --index-url https://download.pytorch.org/whl/nightly/cu1
 # 2. Install Hugging Face dependencies
 pip install transformers accelerate
 
-# 3. Run the automated deployment script
-powershell -ExecutionPolicy Bypass -File .\tools\setup_ziskare_ai.ps1
+# 3. Install Ziskare AI package
+cd D:\ziskare-ai
+pip install -e .
 ```
 
 ---
@@ -80,4 +80,4 @@ powershell -ExecutionPolicy Bypass -File .\tools\setup_ziskare_ai.ps1
 | :--- | :--- | :--- |
 | `'python' is not recognized` | Python was installed without checking "Add to PATH" | Re-run Python installer $\rightarrow$ choose Modify $\rightarrow$ check "Add to PATH", or add Python to Environment Variables. |
 | `Device: cpu` instead of GPU | NVIDIA driver missing or standard CPU PyTorch installed | Install NVIDIA driver, then run: `pip install --pre torch --index-url https://download.pytorch.org/whl/nightly/cu126 --force-reinstall`. |
-| `Execution of scripts is disabled` | Windows PowerShell ExecutionPolicy restriction | Run `Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned` or double-click `tools/setup_ziskare_ai.bat`. |
+

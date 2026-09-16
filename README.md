@@ -48,6 +48,8 @@ The automated installer will:
 | :--- | :--- | :--- |
 | **From Any Terminal** | Global CLI | `ziskare-ai "What is 5 plus 5?"` |
 | **Interactive Chat** | Shell Mode | `ziskare-ai` |
+| **Specialized AI Agents** | Autonomous Agents | `ziskare-ai --agent [code\|system\|task\|optimize]` |
+| **Laptop Cooling & RAM Flush** | Thermal Optimizer | `ziskare-ai --optimize [clean\|cool\|auto]` |
 | **In Any Python Project** | Universal Package | `import ziskare_ai as zai` |
 | **In Node.js / JavaScript** | Subprocess Execution | `execSync('ziskare-ai "query"')` |
 | **In Web Apps / Any Language** | Local REST API | `ziskare-ai --server 5005` |
@@ -96,6 +98,55 @@ ai.reset()
 
 ---
 
+## 🤖 Autonomous AI Agents
+
+Ziskare AI includes a modular offline agents framework in [`agents/`](agents):
+
+```python
+from agents import CodeAgent, SystemAgent, TaskAgent, AgentOrchestrator
+
+# 1. Code Specialist
+coder = CodeAgent()
+code = coder.generate_code("Write a binary search in Python")
+
+# 2. System Operations & Health Specialist
+sys_agent = SystemAgent()
+report = sys_agent.diagnose()  # Live CPU, RAM, Disk, GPU analysis
+
+# 3. Autonomous Task Agent (ReAct Loop + Safe Tools)
+tasker = TaskAgent()
+result = tasker.execute_task("Calculate 15 * 840 and read file ai.py")
+
+# 4. Multi-Agent Orchestrator
+orch = AgentOrchestrator()
+res = orch.run("Explain how to fix 100% disk usage on Windows")
+# 5. Laptop Hardware & Thermal Optimizer (Fan-Free Cooling)
+from ziskare_ai import OptimizerAgent
+optimizer = OptimizerAgent()
+res = optimizer.optimize()       # Flushes RAM, cleans temp files, releases GPU VRAM
+print(f"RAM Freed: {res['memory_flush']['freed_mb']} MB")
+
+# Or run silent background cooling daemon while you work
+optimizer.start_auto_cooling(interval_seconds=45)
+```
+
+Or from the command line:
+```powershell
+# Run specialized agents directly
+ziskare-ai --agent code "Write a fast hash function"
+ziskare-ai --agent system "Check system status"
+ziskare-ai --agent task "Calculate 125 * 38"
+
+# 1-Click Laptop Hardware & Thermal Optimization
+ziskare-ai --optimize                  # Full cleanup: RAM flush, cache purge, thermal cooldown
+ziskare-ai --optimize clean            # Clean Windows %TEMP% & pip cache
+ziskare-ai --optimize cool             # Reduce CPU wattage & release GPU VRAM
+ziskare-ai --optimize auto             # Silent background auto-cooling daemon
+ziskare-ai --optimize bench            # Benchmark thermal status & hardware load
+```
+
+---
+
 ## 🌐 REST API Microservice
 
 Start the built-in HTTP server:
@@ -119,10 +170,18 @@ console.log(data.answer);
 ## 🔄 Disaster Recovery (Fresh Windows Re-Setup)
 
 If you format your laptop or reinstall Windows:
-1. Double-click `install.bat` (or `tools/setup_ziskare_ai.bat`).
+1. Double-click `install.bat`.
 2. Everything is restored automatically.
 
 *Detailed recovery documentation is available in [`docs/REINSTALL_GUIDE.md`](docs/REINSTALL_GUIDE.md).*
+
+---
+
+## 🗑️ Uninstallation
+
+To cleanly remove Ziskare AI from your computer:
+1. Double-click **`uninstall.bat`**.
+2. The script will remove the `ziskare-ai` package from Python, delete the global CLI commands (`ziskare-ai.cmd` and `ziskare.cmd`), clean build artifacts, and prompt if you want to remove the ~3 GB model cache.
 
 ---
 

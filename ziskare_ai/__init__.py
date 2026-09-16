@@ -1,12 +1,10 @@
 """
 Ziskare AI - Universal Offline Embedded Intelligence Engine
 ============================================================
-Package root exposing core engine, helper functions, and REST runner.
+Package root exposing core engine, helper functions, REST runner, and AI agents.
 """
 
-from ziskare_ai.core import ZiskareAI
 from ziskare_ai.cli import get_default_ai, main
-from ziskare_ai.server import run_server
 
 __version__ = "1.0.0"
 __author__ = "Ziskare World"
@@ -22,11 +20,36 @@ def chat(user_message: str, **kwargs):
     return get_default_ai().chat(user_message, **kwargs)
 
 
+def run_server(*args, **kwargs):
+    """Convenience launcher for REST API server."""
+    from ziskare_ai.server import run_server as _run
+    return _run(*args, **kwargs)
+
+
+def __getattr__(name: str):
+    if name == "ZiskareAI":
+        from ziskare_ai.core import ZiskareAI
+        return ZiskareAI
+    elif name in ["CodeAgent", "SystemAgent", "TaskAgent", "OptimizerAgent", "AgentOrchestrator", "BaseAgent"]:
+        import ziskare_ai.agents as _agents_mod
+        return getattr(_agents_mod, name)
+    elif name == "agents":
+        import ziskare_ai.agents as _agents_mod
+        return _agents_mod
+    raise AttributeError(f"module '{__name__}' has no attribute '{name}'")
+
+
 __all__ = [
     "ZiskareAI",
     "ask",
     "chat",
     "run_server",
     "main",
+    "CodeAgent",
+    "SystemAgent",
+    "TaskAgent",
+    "OptimizerAgent",
+    "AgentOrchestrator",
+    "BaseAgent",
     "__version__"
 ]
