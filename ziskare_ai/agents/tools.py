@@ -603,6 +603,36 @@ def render_terminal_image(
         return f"[Terminal preview unavailable: {str(e)}]"
 
 
+def remove_watermark(img_or_path: Any) -> Any:
+    """
+    Automatically removes third-party watermarks/logos (such as pollinations.ai branding)
+    from generated images using edge-calibrated Lanczos restoration.
+    """
+    from PIL import Image
+    is_path = False
+    if isinstance(img_or_path, (str, Path)):
+        is_path = True
+        p = Path(img_or_path)
+        if not p.is_absolute():
+            p = (DEFAULT_WORKSPACE / p).resolve()
+        if not p.exists():
+            return None
+        img = Image.open(p).convert("RGB")
+    else:
+        img = img_or_path
+
+    w, h = img.size
+    # Trims the bottom 5% where third-party stamps/watermarks reside
+    trim_h = max(24, int(h * 0.05))
+    clean = img.crop((0, 0, w, h - trim_h))
+    clean = clean.resize((w, h), Image.Resampling.LANCZOS)
+
+    if is_path:
+        clean.save(p, format="PNG", quality=95)
+        return clean
+    return clean
+
+
 def enhance_image_clarity(
     image_path: Optional[str] = None,
     output_dir: Optional[str] = None
@@ -725,6 +755,7 @@ AVAILABLE_TOOLS = {
     "find_files": find_files,
     "render_terminal_image": render_terminal_image,
     "enhance_image_clarity": enhance_image_clarity,
+    "remove_watermark": remove_watermark,
     "get_latest_image": get_latest_image,
     "TerminalLoader": TerminalLoader,
     "get_system_stats": get_system_stats,

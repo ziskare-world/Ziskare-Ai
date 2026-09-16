@@ -287,7 +287,32 @@ class ZiskareAI:
             res = agent.run(user_input, max_new_tokens=600)
             return ("CodeAgent", res, True)
 
-        # 5a. Image Clarity Enhancement intent
+        # 5a. Remove Watermark intent
+        watermark_triggers = [
+            "remove watermark", "remove the watermark", "remove pollinations.ai watermark",
+            "remove pollinations watermark", "remove the pollinations.ai watermark",
+            "remove pollinations.ai watermark written in generated image", "delete watermark",
+            "no watermark", "strip watermark", "watermark removal"
+        ]
+        has_watermark = any(t in low for t in watermark_triggers) or (
+            ("remove" in low or "delete" in low or "strip" in low or "clean" in low) and
+            ("watermark" in low or "pollinations" in low or "logo" in low) and
+            ("image" in low or "picture" in low)
+        )
+        if has_watermark:
+            agent = self.get_agent("image")
+            res = agent.remove_watermark()
+            if res.get("status") == "success":
+                obs = (
+                    f"Watermark Removal Complete:\n"
+                    f"- Cleaned File: {res['file_path']}\n"
+                    f"- Status: pollinations.ai watermark and branding completely removed from the image."
+                )
+                return ("ImageAgent", obs, False)
+            else:
+                return ("ImageAgent", res.get("message", "Could not remove watermark."), False)
+
+        # 5b. Image Clarity Enhancement intent
         enhance_triggers = [
             "enhance clarity", "enhance clearity", "make it clearer", "increase clarity",
             "sharpen image", "enhance image", "enhance the image", "enhance existing image",

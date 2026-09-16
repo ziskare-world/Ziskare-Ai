@@ -185,6 +185,39 @@ class ImageAgent(BaseAgent):
             "time_taken": elapsed
         }
 
+    def remove_watermark(self, image_path: Optional[str] = None) -> Dict[str, Any]:
+        """
+        Removes third-party watermarks/branding from an existing or recent image.
+        """
+        from ziskare_ai.agents.tools import get_latest_image, remove_watermark, render_terminal_image, open_path
+        target_p = None
+        if image_path and image_path.strip().lower() not in ["recent", "latest", "the image", "image"]:
+            p = Path(image_path)
+            if not p.is_absolute():
+                p = (DEFAULT_WORKSPACE / p).resolve()
+            if p.exists() and p.is_file():
+                target_p = p
+        if target_p is None:
+            target_p = get_latest_image()
+        if target_p is None or not target_p.exists():
+            return {"status": "error", "message": "No image found to remove watermark from."}
+
+        remove_watermark(target_p)
+        preview = render_terminal_image(str(target_p))
+        if not self.silent:
+            print(f"\n\033[1;32m✨ Removed pollinations.ai watermark successfully!\033[0m", flush=True)
+            print(preview, flush=True)
+            print(f"\033[1m📁 Clean Image Saved:\033[0m {target_p}\n", flush=True)
+        try:
+            open_path(str(target_p))
+        except Exception:
+            pass
+        return {
+            "status": "success",
+            "file_path": str(target_p),
+            "message": "Watermark successfully removed and clean image restored."
+        }
+
     def _generate_neural(
         self,
         prompt: str,
@@ -193,7 +226,7 @@ class ImageAgent(BaseAgent):
         out_path: Path,
         seed: Optional[int] = None
     ) -> bool:
-        """Fetch neural image via high-quality endpoint."""
+        """Fetch neural image via high-quality endpoint without watermarks."""
         try:
             encoded_prompt = urllib.parse.quote(prompt)
             seed_param = f"&seed={seed}" if seed is not None else ""
@@ -202,8 +235,11 @@ class ImageAgent(BaseAgent):
             with urllib.request.urlopen(req, timeout=30) as resp:
                 data = resp.read()
                 if len(data) > 500:
-                    with open(out_path, "wb") as f:
-                        f.write(data)
+                    import io
+                    raw_img = Image.open(io.BytesIO(data)).convert("RGB")
+                    from ziskare_ai.agents.tools import remove_watermark
+                    clean_img = remove_watermark(raw_img)
+                    clean_img.save(out_path, format="PNG", quality=95)
                     return True
         except Exception:
             pass
