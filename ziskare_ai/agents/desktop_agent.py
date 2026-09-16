@@ -75,11 +75,24 @@ class DesktopAgent(BaseAgent):
 
         # Check open recent/latest image
         if any(w in low for w in [
-            "recent image", "latest image", "last image", "the image",
+            "recent image", "latest image", "last image", "the image", "generated image",
             "open image", "show image", "revent image", "revently generated",
             "recently generated", "open the recent image", "open recent", "open the recent"
         ]):
-            return self.open("latest image")
+            # Only open directly in external app if explicitly requested
+            explicit_direct = any(e in low for e in ["in explorer", "in photos", "directly", "external"]) and not ("do not open" in low or "don't open" in low or "in the terminal" in low or "in terminal" in low)
+            if explicit_direct:
+                return self.open("latest image")
+
+            # Otherwise render and open the image directly in the terminal!
+            from ziskare_ai.agents.tools import get_latest_image, render_terminal_image
+            latest = get_latest_image()
+            if latest and latest.exists():
+                preview = render_terminal_image(str(latest))
+                print("\n" + preview + "\n", flush=True)
+                return f"Opened generated image in the terminal:\n- File: {latest}\n- High-clarity 24-bit terminal render displayed above."
+            else:
+                return "No generated image found in output/images to open in terminal."
 
         # Check open folder / file
         if any(w in low for w in ["open folder", "open directory", "show in explorer", "open file", "open the file", "open the folder", "open images", "open output", "open downloads"]):

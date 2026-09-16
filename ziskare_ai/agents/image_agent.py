@@ -163,10 +163,6 @@ class ImageAgent(BaseAgent):
                 print(f"\n\033[1;32m✨ Image generated in {elapsed:.1f}s\033[0m \033[90m({width}x{height} | {backend_used})\033[0m", flush=True)
                 print(terminal_preview, flush=True)
                 print(f"\033[1m📁 Saved:\033[0m {out_file} ({file_size / 1024:.1f} KB)\n", flush=True)
-            try:
-                open_path(str(out_file))
-            except Exception:
-                pass
         except Exception:
             if not self.silent:
                 print(f"\n[ImageAgent] Image generated in {elapsed:.1f}s -> {out_file} ({file_size / 1024:.1f} KB)", flush=True)

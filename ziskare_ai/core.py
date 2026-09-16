@@ -324,16 +324,36 @@ class ZiskareAI:
             "open latest image", "show recent image", "show the image", "open revent image",
             "open revently generated image", "open the revently generated image",
             "open the recently generated image", "show the recently generated image",
-            "open recent", "open the recent"
+            "open recent", "open the recent", "open the generated image in the terminal",
+            "open the generated image", "open generated image", "show generated image",
+            "open image in terminal", "show image in terminal", "open the image in the terminal"
         ]
         has_open_image = any(t in low for t in open_image_triggers) or (
             ("open" in low or "show" in low) and
-            any(k in low for k in ["recent image", "latest image", "last image", "the image", "revently generated", "recently generated"])
+            any(k in low for k in ["recent image", "latest image", "last image", "the image", "generated image", "revently generated", "recently generated"])
         )
         if has_open_image:
-            agent = self.get_agent("desktop")
-            res = agent.open("latest image")
-            return ("DesktopAgent", res, False)
+            from ziskare_ai.agents.tools import get_latest_image, render_terminal_image
+            # Check if user explicitly asked for external explorer or photo viewer
+            explicit_direct = any(w in low for w in ["in explorer", "in photos", "directly in app"]) and not ("do not open" in low or "don't open" in low or "in the terminal" in low or "in terminal" in low)
+            if explicit_direct:
+                agent = self.get_agent("desktop")
+                res = agent.open("latest image")
+                return ("DesktopAgent", res, False)
+
+            # Open / render the image directly in the terminal
+            latest = get_latest_image()
+            if latest and latest.exists():
+                preview = render_terminal_image(str(latest))
+                print("\n" + preview + "\n", flush=True)
+                obs = (
+                    f"Opened generated image in the terminal:\n"
+                    f"- File: {latest}\n"
+                    f"- High-clarity 24-bit terminal render displayed above."
+                )
+                return ("ImageAgent", obs, False)
+            else:
+                return ("ImageAgent", "No recently generated image found to display in terminal.", False)
 
         # 5c. Inquiries about the recently generated image
         image_inquiry_triggers = [
