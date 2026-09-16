@@ -255,7 +255,7 @@ The server will automatically detect your laptop's local LAN IP and display:
 
 ### 2. Connect Your Phone:
 - **Instant Web/PWA App**: Open Chrome or Samsung Internet on your phone, visit `http://<laptop-ip>:5005/mobile`, and tap **"Add to Home screen"**.
-- **Native Android Studio App**: Open the `android/` directory in Android Studio and run/build APK onto your Android device. See [`android/README.md`](android/README.md) for full instructions.
+- **Native Android Studio App (Kotlin)**: Open the `android/` directory in Android Studio and run/build APK onto your Android device. Built with 100% modern idiomatic Kotlin, AndroidX KTX, and hardware-accelerated WebView. See [`android/README.md`](android/README.md) for full instructions.
 
 ## 🔄 Disaster Recovery (Fresh Windows Re-Setup)
 

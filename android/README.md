@@ -55,11 +55,14 @@ A ChatGPT-style mobile experience connecting your Android phone to your laptop's
 
 ---
 
-## Method B: Native Android Studio Build
+## Method B: Native Android Studio Build (100% Kotlin)
+
+The native Android app is written in **idiomatic Kotlin** using AndroidX KTX, modern `ActivityResultContracts` for audio permissions, `OnBackPressedDispatcher`, and hardware-accelerated WebView.
 
 ### Prerequisites
-- Android Studio Iguana / Jellyfish / Ladybug or newer.
+- Android Studio Iguana / Jellyfish / Ladybug / Koala or newer.
 - Android SDK 34 (Android 14) and Android Build Tools.
+- Kotlin 1.9+.
 - Android device running Android 7.0 (API 24) or higher.
 
 ### Steps to Build and Run
