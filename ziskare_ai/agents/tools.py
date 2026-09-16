@@ -124,14 +124,33 @@ def clean_temp_files() -> Dict[str, Any]:
     if os.environ.get("TEMP"):
         temp_paths.append(Path(os.environ.get("TEMP")))
     if os.environ.get("LOCALAPPDATA"):
-        local_temp = Path(os.environ.get("LOCALAPPDATA")) / "Temp"
+        local_app = Path(os.environ.get("LOCALAPPDATA"))
+        local_temp = local_app / "Temp"
         if local_temp not in temp_paths:
             temp_paths.append(local_temp)
+        crash_dumps = local_app / "CrashDumps"
+        if crash_dumps.exists() and crash_dumps not in temp_paths:
+            temp_paths.append(crash_dumps)
+        wer_archive = local_app / "Microsoft" / "Windows" / "WER" / "ReportArchive"
+        if wer_archive.exists() and wer_archive not in temp_paths:
+            temp_paths.append(wer_archive)
+        wer_queue = local_app / "Microsoft" / "Windows" / "WER" / "ReportQueue"
+        if wer_queue.exists() and wer_queue not in temp_paths:
+            temp_paths.append(wer_queue)
+
+    win_temp = Path("C:/Windows/Temp")
+    if win_temp.exists() and win_temp not in temp_paths:
+        temp_paths.append(win_temp)
 
     for temp_dir in temp_paths:
         if not temp_dir.exists():
             continue
-        for entry in temp_dir.iterdir():
+        try:
+            entries = list(temp_dir.iterdir())
+        except (PermissionError, OSError):
+            continue
+
+        for entry in entries:
             try:
                 if entry.is_file() or entry.is_symlink():
                     sz = entry.stat().st_size
